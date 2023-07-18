@@ -1,4 +1,4 @@
-module terraform-provider-dg-nservicebus
+module terraform-provider-nservicebus
 
 go 1.19
 
