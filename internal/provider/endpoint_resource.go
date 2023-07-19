@@ -290,7 +290,7 @@ func (r *endpointResource) UpdateSubscriptions(
 	previousState asb.EndpointModel,
 	plan asb.EndpointModel,
 ) error {
-	subscriptions := getUniqueElements(append(append([]string{}, plan.Subscriptions...), previousState.Subscriptions...))
+	subscriptions := getUniqueElements(append(plan.Subscriptions, previousState.Subscriptions...))
 
 	for _, subscription := range subscriptions {
 		shouldBeDeleted := !arrayContains(plan.Subscriptions, subscription)
