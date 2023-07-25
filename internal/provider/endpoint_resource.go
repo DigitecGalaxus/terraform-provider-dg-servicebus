@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
-	"terraform-provider-nservicebus/internal/provider/asb"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"

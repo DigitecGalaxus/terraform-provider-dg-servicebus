@@ -17,38 +17,38 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ provider.Provider = &nservicebusProvider{}
+	_ provider.Provider = &DgServicebusProvider{}
 )
 
 // New is a helper function to simplify provider server and testing implementation.
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &nservicebusProvider{
+		return &DgServicebusProvider{
 			version: version,
 		}
 	}
 }
 
-type nservicebusProvider struct {
+type DgServicebusProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
 }
 
-type nservicebusProviderModel struct {
-	AccessToken types.String `tfsdk:"access_token"`
-	Hostname    types.String `tfsdk:"azure_servicebus_hostname"`
+type DgServicebusProviderModel struct {
+	AccessToken  types.String `tfsdk:"access_token"`
+	Hostname     types.String `tfsdk:"azure_servicebus_hostname"`
 }
 
 // Metadata returns the provider type name.
-func (p *nservicebusProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "nservicebus"
+func (p *DgServicebusProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "dgservicebus"
 	resp.Version = p.version
 }
 
 // Schema defines the provider-level schema for configuration data.
-func (p *nservicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *DgServicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"access_token": schema.StringAttribute{
@@ -64,11 +64,11 @@ func (p *nservicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest
 	}
 }
 
-func (p *nservicebusProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	tflog.Info(ctx, "Configuring HashiCups client")
 
 	// Retrieve provider data from configuration
-	var config nservicebusProviderModel
+	var config DgServicebusProviderModel
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -108,8 +108,8 @@ func (p *nservicebusProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 
-	ctx = tflog.SetField(ctx, "nservicebus_access_token", accessToken)
-	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "nservicebus_access_token")
+	ctx = tflog.SetField(ctx, "dgservicebus_access_token", accessToken)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dgservicebus_access_token")
 
 	tflog.Debug(ctx, "Creating Azure Authenticaion Credential")
 
@@ -140,11 +140,10 @@ func (p *nservicebusProvider) Configure(ctx context.Context, req provider.Config
 	tflog.Info(ctx, "Configured HashiCups client", map[string]any{"success": true})
 }
 
-func (p *nservicebusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+func (p *DgServicebusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 }
 
-func (p *nservicebusProvider) Resources(_ context.Context) []func() resource.Resource {
+func (p *DgServicebusProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewEndpointResource,
 	}
