@@ -202,6 +202,9 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 }
 
 func (p *DgServicebusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		NewEndpointDataSource,
+	}
 }
 
 func (p *DgServicebusProvider) Resources(_ context.Context) []func() resource.Resource {
