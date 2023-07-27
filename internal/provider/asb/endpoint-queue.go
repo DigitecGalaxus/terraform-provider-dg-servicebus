@@ -8,16 +8,17 @@ import (
 )
 
 func (w *AsbClientWrapper) CreateEndpointQueue(
-	azureContext context.Context,
-	model EndpointModel,
+	ctx context.Context,
+	queueName string,
+	queueOptions EndpointQueueOptions,
 ) error {
 	_, err := w.Client.CreateQueue(
-		azureContext,
-		model.EndpointName,
+		ctx,
+		queueName,
 		&az.CreateQueueOptions{
 			Properties: &az.QueueProperties{
-				EnablePartitioning:      model.QueueOptions.EnablePartitioning,
-				MaxSizeInMegabytes:      model.QueueOptions.MaxSizeInMegabytes,
+				EnablePartitioning:      queueOptions.EnablePartitioning,
+				MaxSizeInMegabytes:      queueOptions.MaxSizeInMegabytes,
 				MaxDeliveryCount:        to.Ptr(MAX_DELIVERY_COUNT),
 				LockDuration:            to.Ptr("PT5M"),
 				EnableBatchedOperations: to.Ptr(true),
@@ -29,11 +30,11 @@ func (w *AsbClientWrapper) CreateEndpointQueue(
 }
 
 func (w *AsbClientWrapper) DeleteEndpointQueue(
-	azureContext context.Context,
+	ctx context.Context,
 	model EndpointModel,
 ) error {
 	_, err := w.Client.DeleteQueue(
-		azureContext,
+		ctx,
 		model.EndpointName,
 		nil,
 	)
@@ -43,11 +44,11 @@ func (w *AsbClientWrapper) DeleteEndpointQueue(
 
 func (w *AsbClientWrapper) GetEndpointQueue(
 	azureContext context.Context,
-	model EndpointModel,
+	endpointName string,
 ) (*az.GetQueueResponse, error) {
 	return w.Client.GetQueue(
 		azureContext,
-		model.EndpointName,
+		endpointName,
 		nil,
 	)
 }

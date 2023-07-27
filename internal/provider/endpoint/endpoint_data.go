@@ -1,4 +1,4 @@
-package provider
+package endpoint
 
 import (
 	"context"
@@ -45,10 +45,16 @@ func (d *endpointDataSource) Configure(_ context.Context, req datasource.Configu
 	}
 }
 
-type endpointDataModel struct {
-	EndpointName     types.String                      `tfsdk:"endpoint_name"`
-	TopicName        types.String                      `tfsdk:"topic_name"`
-	Subscriptions    []string                          `tfsdk:"subscriptions"`
+type endpointDataSourceModel struct {
+	EndpointName     types.String                        `tfsdk:"endpoint_name"`
+	TopicName        types.String                        `tfsdk:"topic_name"`
+	Subscriptions    []string                            `tfsdk:"subscriptions"`
+	QueueOptions     *endpointDataSourceQueueOptionsModel `tfsdk:"queue_options"`
+}
+
+type endpointDataSourceQueueOptionsModel struct {
+	EnablePartitioning types.Bool  `tfsdk:"enable_partitioning"`
+	MaxSizeInMegabytes types.Int64 `tfsdk:"max_size_in_megabytes"`
 }
 
 func (d *endpointDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -68,40 +74,71 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Computed: true,
 				ElementType: types.StringType,
 			},
+			"queue_options": schema.SingleNestedAttribute{
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"enable_partitioning": schema.BoolAttribute{
+						Computed: true,
+					},
+					"max_size_in_megabytes": schema.Int64Attribute{
+						Computed: true,
+					},
+				},
+			},
 		},
 	}
 }
 
 func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state endpointDataModel
-
+	var state endpointDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+	state.QueueOptions = &endpointDataSourceQueueOptionsModel{}
 
-	endpointState := endpointDataModel{
-		TopicName: state.TopicName,
-		EndpointName: state.EndpointName,
-	}
-
-	pager := d.client.Client.NewListRulesPager(
+	subscriptions, err := d.client.GetEndpointSubscriptions(
+		ctx,
 		state.TopicName.ValueString(),
 		state.EndpointName.ValueString(),
-		&az.ListRulesOptions{MaxPageSize: 10},
 	)
 
-
-	for pager.More() {
-		page, err := pager.NextPage(context.Background())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to advance rules page: %v", err.Error(),
-			)
-		}
-		for _, rule := range page.Rules {
-			endpointState.Subscriptions = append(endpointState.Subscriptions, rule.Name)
-		}
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error getting Subscriptions",
+			"Could not get Subscriptions, unexpected error: "+err.Error(),
+		)
+		return
 	}
 
-	state = endpointState
+	subscriptionNames := make([]string, 0, len(subscriptions))
+	for k := range subscriptions {
+		subscriptionNames = append(subscriptionNames, k)
+	}
+	
+
+	state.Subscriptions = subscriptionNames;
+
+	queue, err := d.client.GetEndpointQueue(
+		ctx,
+		state.EndpointName.ValueString(),
+	)
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error getting Queue",
+			"Could not get Queue, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	if queue == nil {
+		resp.Diagnostics.AddError(
+			"Queue does not exist",
+			fmt.Sprintf("No Queue for Endpoint %s exist", state.EndpointName.ValueString()),
+		)
+		return
+	}
+
+	state.QueueOptions.EnablePartitioning = types.BoolValue(*queue.EnablePartitioning)
+	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(*queue.MaxSizeInMegabytes))
 
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

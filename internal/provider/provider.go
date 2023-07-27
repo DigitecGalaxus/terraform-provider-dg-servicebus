@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"os"
+	"terraform-provider-dg-servicebus/internal/provider/endpoint"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -203,12 +204,12 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 
 func (p *DgServicebusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewEndpointDataSource,
+		endpoint.NewEndpointDataSource,
 	}
 }
 
 func (p *DgServicebusProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewEndpointResource,
+		endpoint.NewEndpointResource,
 	}
 }
