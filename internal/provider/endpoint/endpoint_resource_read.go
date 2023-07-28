@@ -17,8 +17,6 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 	model := state.ToAsbModel()
 
-	// time.Sleep(10 * time.Second)
-
 	state.QueueExists = types.BoolValue(true)
 	state.EndpointExists = types.BoolValue(true)
 	state.ShouldCreateQueue = types.BoolValue(false)

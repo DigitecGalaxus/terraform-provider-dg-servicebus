@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
@@ -18,7 +19,7 @@ func (r *endpointResource) Delete(ctx context.Context, req resource.DeleteReques
 	azureContext := context.Background()
 
 	err := r.client.DeleteEndpointQueue(azureContext, model)
-	if err != nil {
+	if err != nil && !StatusCodeIsOk(err.Error()) {
 		resp.Diagnostics.AddError(
 			"Error deleting queue",
 			"Could not delete queue, unexpected error: "+err.Error(),
@@ -27,11 +28,15 @@ func (r *endpointResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	err = r.client.DeleteEndpoint(azureContext, model)
-	if err != nil {
+	if err != nil && !StatusCodeIsOk(err.Error()) {
 		resp.Diagnostics.AddError(
 			"Error deleting subscription",
 			"Could not delete subscription, unexpected error: "+err.Error(),
 		)
 		return
 	}
+}
+
+func StatusCodeIsOk(errorMessage string) bool {
+	return strings.Contains(errorMessage, "ERROR CODE: 404")
 }
