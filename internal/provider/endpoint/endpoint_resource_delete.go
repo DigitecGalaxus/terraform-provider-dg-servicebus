@@ -26,7 +26,7 @@ func (r *endpointResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	err = r.client.DeleteEndpoint(azureContext, model.TopicName, model.EndpointName)
+	err = r.client.DeleteEndpoint(azureContext, model)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting subscription",

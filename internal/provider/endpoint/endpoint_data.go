@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
@@ -11,9 +12,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-
 var (
-	_ datasource.DataSource = &endpointDataSource{}
+	_ datasource.DataSource              = &endpointDataSource{}
 	_ datasource.DataSourceWithConfigure = &endpointDataSource{}
 )
 
@@ -21,7 +21,7 @@ func NewEndpointDataSource() datasource.DataSource {
 	return &endpointDataSource{}
 }
 
-type endpointDataSource struct{
+type endpointDataSource struct {
 	client *asb.AsbClientWrapper
 }
 
@@ -46,10 +46,10 @@ func (d *endpointDataSource) Configure(_ context.Context, req datasource.Configu
 }
 
 type endpointDataSourceModel struct {
-	EndpointName     types.String                        `tfsdk:"endpoint_name"`
-	TopicName        types.String                        `tfsdk:"topic_name"`
-	Subscriptions    []string                            `tfsdk:"subscriptions"`
-	QueueOptions     *endpointDataSourceQueueOptionsModel `tfsdk:"queue_options"`
+	EndpointName  types.String                         `tfsdk:"endpoint_name"`
+	TopicName     types.String                         `tfsdk:"topic_name"`
+	Subscriptions []string                             `tfsdk:"subscriptions"`
+	QueueOptions  *endpointDataSourceQueueOptionsModel `tfsdk:"queue_options"`
 }
 
 type endpointDataSourceQueueOptionsModel struct {
@@ -71,7 +71,7 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Required: true,
 			},
 			"subscriptions": schema.ListAttribute{
-				Computed: true,
+				Computed:    true,
 				ElementType: types.StringType,
 			},
 			"queue_options": schema.SingleNestedAttribute{
@@ -89,16 +89,26 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 	}
 }
 
+func (model endpointDataSourceModel) ToAsbModel() asb.EndpointModel {
+	return asb.EndpointModel{
+		EndpointName:  model.EndpointName.ValueString(),
+		TopicName:     model.TopicName.ValueString(),
+		Subscriptions: model.Subscriptions,
+		QueueOptions: asb.EndpointQueueOptions{
+			EnablePartitioning: model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
+			MaxSizeInMegabytes: to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
+		},
+	}
+}
+
 func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var state endpointDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	state.QueueOptions = &endpointDataSourceQueueOptionsModel{}
 
-	subscriptions, err := d.client.GetEndpointSubscriptions(
-		ctx,
-		state.TopicName.ValueString(),
-		state.EndpointName.ValueString(),
-	)
+	model := state.ToAsbModel()
+
+	subscriptions, err := d.client.GetEndpointSubscriptions(ctx, model)
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -112,14 +122,10 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 	for k := range subscriptions {
 		subscriptionNames = append(subscriptionNames, k)
 	}
-	
 
-	state.Subscriptions = subscriptionNames;
+	state.Subscriptions = subscriptionNames
 
-	queue, err := d.client.GetEndpointQueue(
-		ctx,
-		state.EndpointName.ValueString(),
-	)
+	queue, err := d.client.GetEndpointQueue(ctx, model)
 
 	if err != nil {
 		resp.Diagnostics.AddError(

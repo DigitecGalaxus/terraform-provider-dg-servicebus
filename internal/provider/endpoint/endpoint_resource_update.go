@@ -2,45 +2,48 @@ package endpoint
 
 import (
 	"context"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
-
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan endpointResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	planModel := plan.ToAsbModel()
 
 	previousState := endpointResourceModel{}
 	req.State.Get(ctx, &previousState)
-	azureContext := context.Background()
-
 	previousStateModel := previousState.ToAsbModel()
-	planModel := plan.ToAsbModel()
 
-	if plan.EndpointName.ValueString() != previousState.EndpointName.ValueString() {
-		r.client.DeleteEndpointQueue(azureContext, previousStateModel)
-		r.client.CreateEndpointQueue(azureContext, planModel.EndpointName, planModel.QueueOptions)
-
-		r.client.DeleteEndpoint(azureContext, previousStateModel.TopicName, previousStateModel.EndpointName)
-		r.client.CreateEndpointWithDefaultRule(azureContext, planModel.TopicName, planModel.EndpointName)
+	if plan.ShouldCreateQueue.ValueBool() {
+		r.client.CreateEndpointQueue(ctx, planModel.EndpointName, planModel.QueueOptions)
 	}
 
-	r.UpdateSubscriptions(azureContext, previousStateModel, planModel)
+	if plan.ShouldCreateEndpoint.ValueBool() {
+		r.client.CreateEndpointWithDefaultRule(ctx, planModel)
+	}
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	if plan.EndpointName.ValueString() != previousState.EndpointName.ValueString() {
+		r.client.DeleteEndpointQueue(ctx, previousStateModel)
+		r.client.CreateEndpointQueue(ctx, planModel.EndpointName, planModel.QueueOptions)
+
+		r.client.DeleteEndpoint(ctx, previousStateModel)
+		r.client.CreateEndpointWithDefaultRule(ctx, planModel)
+	}
+
+	r.UpdateSubscriptions(ctx, previousStateModel, planModel)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 }
 
 func (r *endpointResource) UpdateSubscriptions(
-	azureContext context.Context,
+	ctx context.Context,
 	previousState asb.EndpointModel,
 	plan asb.EndpointModel,
 ) error {
@@ -49,7 +52,7 @@ func (r *endpointResource) UpdateSubscriptions(
 	for _, subscription := range subscriptions {
 		shouldBeDeleted := !arrayContains(plan.Subscriptions, subscription)
 		if shouldBeDeleted {
-			err := r.client.DeleteEndpointSubscription(azureContext, plan, subscription)
+			err := r.client.DeleteEndpointSubscription(ctx, plan, subscription)
 			if err != nil {
 				return err
 			}
@@ -58,7 +61,7 @@ func (r *endpointResource) UpdateSubscriptions(
 
 		shouldBeCreated := !arrayContains(previousState.Subscriptions, subscription)
 		if shouldBeCreated {
-			err := r.client.CreateEndpointSubscription(azureContext, plan, subscription)
+			err := r.client.CreateEndpointSubscription(ctx, plan, subscription)
 			if err != nil {
 				return err
 			}

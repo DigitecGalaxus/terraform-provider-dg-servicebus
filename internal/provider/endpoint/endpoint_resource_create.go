@@ -38,7 +38,7 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 		}
 	}
 
-	err = r.client.CreateEndpointWithDefaultRule(ctx, model.TopicName, model.EndpointName)
+	err = r.client.CreateEndpointWithDefaultRule(ctx, model)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating subscription",
@@ -57,9 +57,10 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 			return
 		}
 	}
-
+	
 	plan.QueueExists = types.BoolValue(true)
 	plan.EndpointExists = types.BoolValue(true)
+	plan.ShouldCreateQueue = types.BoolValue(false)
 	plan.ShouldCreateEndpoint = types.BoolValue(false)
 
 	diags = resp.State.Set(ctx, plan)
