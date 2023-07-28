@@ -13,14 +13,13 @@ type Subscription struct {
 
 func (w *AsbClientWrapper) GetEndpointSubscriptions(
 	ctx context.Context,
-	topicName string,
-	endpointName string,
+	model EndpointModel,
 ) (map[string]Subscription, error) {
 	subscriptions := map[string]Subscription{}
 
 	pager := w.Client.NewListRulesPager(
-		topicName,
-		endpointName,
+		model.TopicName,
+		model.EndpointName,
 		nil,
 	)
 

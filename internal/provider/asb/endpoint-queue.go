@@ -44,11 +44,11 @@ func (w *AsbClientWrapper) DeleteEndpointQueue(
 
 func (w *AsbClientWrapper) GetEndpointQueue(
 	azureContext context.Context,
-	endpointName string,
+	model EndpointModel,
 ) (*az.GetQueueResponse, error) {
 	return w.Client.GetQueue(
 		azureContext,
-		endpointName,
+		model.EndpointName,
 		nil,
 	)
 }
