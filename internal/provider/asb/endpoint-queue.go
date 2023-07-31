@@ -52,3 +52,14 @@ func (w *AsbClientWrapper) GetEndpointQueue(
 		nil,
 	)
 }
+
+func (w *AsbClientWrapper) QueueExists(ctx context.Context, queueName string,) (bool, error) {
+	queue, err := w.Client.GetQueue(ctx, queueName, nil)
+	if err != nil {
+		return false, err
+	}
+	if queue == nil {
+		return false, nil
+	}
+	return true, nil
+}
