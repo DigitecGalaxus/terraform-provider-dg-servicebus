@@ -3,8 +3,9 @@ package endpoint
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -66,16 +67,20 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 		Attributes: map[string]schema.Attribute{
 			"endpoint_name": schema.StringAttribute{
 				Required: true,
+				Description: "The name of the endpoint.",
 			},
 			"topic_name": schema.StringAttribute{
 				Required: true,
+				Description: "The name of the topic, in which the endpoint is created",
 			},
 			"subscriptions": schema.ListAttribute{
 				Computed:    true,
+				Description: "The list of all subscribers for the endpoint",
 				ElementType: types.StringType,
 			},
 			"queue_options": schema.SingleNestedAttribute{
 				Computed: true,
+				Description: "The options for the queue, which is created for the endpoint",
 				Attributes: map[string]schema.Attribute{
 					"enable_partitioning": schema.BoolAttribute{
 						Computed: true,

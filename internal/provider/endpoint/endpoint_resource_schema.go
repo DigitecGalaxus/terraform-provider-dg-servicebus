@@ -3,6 +3,8 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -11,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 // endpointResourceModel maps the resource schema data.
@@ -37,14 +38,14 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 		Attributes: map[string]schema.Attribute{
 			"endpoint_name": schema.StringAttribute{
 				Required:    true,
-				Description: "",
+				Description: "The name of the endpoint to create.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"topic_name": schema.StringAttribute{
 				Required:    true,
-				Description: "",
+				Description: "The name of the topic to create the endpoint on.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -52,14 +53,16 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"subscriptions": schema.ListAttribute{
 				Required:    true,
 				ElementType: types.StringType,
-				Description: ""},
+				Description: "The list of subscriptions to create on the endpoint.",
+			},
 			"additional_queues": schema.ListAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "",
+				Description: "Additional queues to create for the endpoint.",
 			},
 			"queue_options": schema.SingleNestedAttribute{
 				Required: true,
+				Description: "The options for the queue, which is created for the endpoint.",
 				Attributes: map[string]schema.Attribute{
 					"enable_partitioning": schema.BoolAttribute{
 						Required: true,
@@ -74,18 +77,21 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			"queue_exists": schema.BoolAttribute{
 				Computed: true,
+				Description: "Debugging attribute to check if the queue exists.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"endpoint_exists": schema.BoolAttribute{
 				Computed: true,
+				Description: "Debugging attribute to check if the endpoint exists.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"should_create_queue": schema.BoolAttribute{
 				Computed: true,
+				Description: "Debugging attribute to check if the queue should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateQueueIfNotExistsModifier{},
 					boolplanmodifier.UseStateForUnknown(),
@@ -93,6 +99,7 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			"should_create_endpoint": schema.BoolAttribute{
 				Computed: true,
+				Description: "Debugging attribute to check if the endpoint should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateEndpointIfNotExistsModifier{},
 					shouldCreateEndpointIfSubscriberAddedModifier{},
