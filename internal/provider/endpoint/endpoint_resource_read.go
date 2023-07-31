@@ -76,8 +76,8 @@ func (r *endpointResource) checkEndpointQueue(ctx context.Context, model asb.End
 			fmt.Sprintf("Endpoint Queue %s does not exists on Azure, whole resource will be recreated at apply", state.EndpointName.ValueString()),
 		)
 	} else {
-		state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(*queue.MaxSizeInMegabytes))
-		state.QueueOptions.EnablePartitioning = types.BoolValue(*queue.EnablePartitioning)
+		state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(*queue.QueueProperties.MaxSizeInMegabytes))
+		state.QueueOptions.EnablePartitioning = types.BoolValue(*queue.QueueProperties.EnablePartitioning)
 	}
 	return true
 }
