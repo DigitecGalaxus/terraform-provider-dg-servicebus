@@ -58,22 +58,22 @@ func (p *DgServicebusProvider) Schema(_ context.Context, _ provider.SchemaReques
 			"azure_servicebus_hostname": schema.StringAttribute{
 				Required:    true,
 				Sensitive:   false,
-				Description: "",
+				Description: "The hostname of the Azure Service Bus instance",
 			},
 			"tenant_id": schema.StringAttribute{
 				Optional: true,
 				Sensitive: false,
-				Description: "",
+				Description: "The Tenant ID which should be used. This can also be sourced from the `DG_SERVICEBUS_TENANTID` Environment Variable.",
 			},
 			"client_id": schema.StringAttribute{
 				Optional: true,
 				Sensitive: false,
-				Description: "",
+				Description: "The Client ID which should be used. This can also be sourced from the `DG_SERVICEBUS_CLIENTID` Environment Variable.",
 			},
 			"client_secret": schema.StringAttribute{
 				Optional: true,
 				Sensitive: true,
-				Description: "",
+				Description: "The Client Secret which should be used. This can also be sourced from the `DG_SERVICEBUS_CLIENTSECRET` Environment Variable.",
 			},
 		},
 	}
