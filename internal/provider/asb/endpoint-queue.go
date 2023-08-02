@@ -42,6 +42,19 @@ func (w *AsbClientWrapper) DeleteEndpointQueue(
 	return err
 }
 
+func (w *AsbClientWrapper) DeleteAdditionalQueue(
+	ctx context.Context,
+	queueName string,
+) error {
+	_, err := w.Client.DeleteQueue(
+		ctx,
+		queueName,
+		nil,
+	)
+
+	return err
+}
+
 func (w *AsbClientWrapper) GetEndpointQueue(
 	azureContext context.Context,
 	model EndpointModel,
