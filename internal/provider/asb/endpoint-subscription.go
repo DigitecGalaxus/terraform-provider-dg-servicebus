@@ -36,8 +36,6 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 				continue
 			}
 
-			
-
 			subscription := Subscription{
 				Name: rule.Name,
 				Filter: rule.Filter.(*az.SQLFilter).Expression,
