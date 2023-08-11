@@ -28,14 +28,6 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		r.client.CreateEndpointWithDefaultRule(ctx, planModel)
 	}
 
-	if plan.EndpointName.ValueString() != previousState.EndpointName.ValueString() {
-		r.client.DeleteEndpointQueue(ctx, previousStateModel)
-		r.client.CreateEndpointQueue(ctx, planModel.EndpointName, planModel.QueueOptions)
-
-		r.client.DeleteEndpoint(ctx, previousStateModel)
-		r.client.CreateEndpointWithDefaultRule(ctx, planModel)
-	}
-
 	r.UpdateSubscriptions(ctx, previousStateModel, planModel)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
