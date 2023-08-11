@@ -66,30 +66,31 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 
 func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.EndpointModel, resp *resource.CreateResponse) bool {
 	err := r.client.CreateEndpointQueue(ctx, model.EndpointName, model.QueueOptions)
-	if err != nil {
+	if err == nil {
+		return true
+	}
 
-		var respError *azcore.ResponseError
-		switch {
-		case errors.As(err, &respError):
-			if respError.StatusCode == http.StatusConflict {
-				resp.Diagnostics.AddError(
-					"Resource already exists",
-					"This resource already exists and is tracked outside of Terraform. "+
-						"To track this resource you have to import it into state with: "+
-						"'terraform import dgservicebus_endpoint.<Block label> <topic_name>,<endpoint_name>'",
-				)
-				return false
-			}
-			break
-		default:
+	var respError *azcore.ResponseError
+	switch {
+	case errors.As(err, &respError):
+		if respError.StatusCode == http.StatusConflict {
 			resp.Diagnostics.AddError(
-				"Error creating queue",
-				"Could not create queue, unexpected error: "+err.Error(),
+				"Resource already exists",
+				"This resource already exists and is tracked outside of Terraform. "+
+					"To track this resource you have to import it into state with: "+
+					"'terraform import dgservicebus_endpoint.<Block label> <topic_name>,<endpoint_name>'",
 			)
 			return false
 		}
+		break
+	default:
+		resp.Diagnostics.AddError(
+			"Error creating queue",
+			"Could not create queue, unexpected error: "+err.Error(),
+		)
+		return false
 	}
-	return true
+	return false
 }
 
 func (r *endpointResource) createAdditionalQueues(ctx context.Context, model asb.EndpointModel, resp *resource.CreateResponse) bool {
