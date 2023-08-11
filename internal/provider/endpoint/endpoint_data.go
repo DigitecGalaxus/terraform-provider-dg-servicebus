@@ -75,12 +75,12 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			},
 			"subscriptions": schema.ListAttribute{
 				Computed:    true,
-				Description: "The list of all subscribers for the endpoint",
+				Description: "A list of all subscriptions the endpoint has",
 				ElementType: types.StringType,
 			},
 			"queue_options": schema.SingleNestedAttribute{
 				Computed: true,
-				Description: "The options for the queue, which is created for the endpoint",
+				Description: "The configuration used when creating any queues for that endpoint",
 				Attributes: map[string]schema.Attribute{
 					"enable_partitioning": schema.BoolAttribute{
 						Computed: true,
