@@ -8,16 +8,17 @@ import (
 )
 
 func (w *AsbClientWrapper) CreateEndpointQueue(
-	azureContext context.Context,
-	model EndpointModel,
+	ctx context.Context,
+	queueName string,
+	queueOptions EndpointQueueOptions,
 ) error {
 	_, err := w.Client.CreateQueue(
-		azureContext,
-		model.EndpointName,
+		ctx,
+		queueName,
 		&az.CreateQueueOptions{
 			Properties: &az.QueueProperties{
-				EnablePartitioning:      model.QueueOptions.EnablePartitioning,
-				MaxSizeInMegabytes:      model.QueueOptions.MaxSizeInMegabytes,
+				EnablePartitioning:      queueOptions.EnablePartitioning,
+				MaxSizeInMegabytes:      queueOptions.MaxSizeInMegabytes,
 				MaxDeliveryCount:        to.Ptr(MAX_DELIVERY_COUNT),
 				LockDuration:            to.Ptr("PT5M"),
 				EnableBatchedOperations: to.Ptr(true),
@@ -29,12 +30,25 @@ func (w *AsbClientWrapper) CreateEndpointQueue(
 }
 
 func (w *AsbClientWrapper) DeleteEndpointQueue(
-	azureContext context.Context,
+	ctx context.Context,
 	model EndpointModel,
 ) error {
 	_, err := w.Client.DeleteQueue(
-		azureContext,
+		ctx,
 		model.EndpointName,
+		nil,
+	)
+
+	return err
+}
+
+func (w *AsbClientWrapper) DeleteAdditionalQueue(
+	ctx context.Context,
+	queueName string,
+) error {
+	_, err := w.Client.DeleteQueue(
+		ctx,
+		queueName,
 		nil,
 	)
 
@@ -50,4 +64,15 @@ func (w *AsbClientWrapper) GetEndpointQueue(
 		model.EndpointName,
 		nil,
 	)
+}
+
+func (w *AsbClientWrapper) QueueExists(ctx context.Context, queueName string,) (bool, error) {
+	queue, err := w.Client.GetQueue(ctx, queueName, nil)
+	if err != nil {
+		return false, err
+	}
+	if queue == nil {
+		return false, nil
+	}
+	return true, nil
 }

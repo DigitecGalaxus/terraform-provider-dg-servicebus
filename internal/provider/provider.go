@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"os"
+	"terraform-provider-dg-servicebus/internal/provider/endpoint"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -17,70 +19,106 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ provider.Provider = &nservicebusProvider{}
+	_ provider.Provider = &DgServicebusProvider{}
 )
 
 // New is a helper function to simplify provider server and testing implementation.
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &nservicebusProvider{
+		return &DgServicebusProvider{
 			version: version,
 		}
 	}
 }
 
-type nservicebusProvider struct {
+type DgServicebusProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
 }
 
-type nservicebusProviderModel struct {
-	AccessToken types.String `tfsdk:"access_token"`
-	Hostname    types.String `tfsdk:"azure_servicebus_hostname"`
+type DgServicebusProviderModel struct {
+	Hostname     types.String `tfsdk:"azure_servicebus_hostname"`
+	TenantId     types.String `tfsdk:"tenant_id"`
+	ClientId     types.String `tfsdk:"client_id"`
+	ClientSecret types.String `tfsdk:"client_secret"`
 }
 
-// Metadata returns the provider type name.
-func (p *nservicebusProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "nservicebus"
+func (p *DgServicebusProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "dgservicebus"
 	resp.Version = p.version
 }
 
-// Schema defines the provider-level schema for configuration data.
-func (p *nservicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *DgServicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"access_token": schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
-			},
 			"azure_servicebus_hostname": schema.StringAttribute{
 				Required:    true,
 				Sensitive:   false,
-				Description: "",
+				Description: "The hostname of the Azure Service Bus instance",
+			},
+			"tenant_id": schema.StringAttribute{
+				Optional: true,
+				Sensitive: false,
+				Description: "The Tenant ID of the service principal. This can also be sourced from the `DG_SERVICEBUS_TENANTID` Environment Variable.",
+			},
+			"client_id": schema.StringAttribute{
+				Optional: true,
+				Sensitive: false,
+				Description: "The Client ID of the service principal. This can also be sourced from the `DG_SERVICEBUS_CLIENTID` Environment Variable.",
+			},
+			"client_secret": schema.StringAttribute{
+				Optional: true,
+				Sensitive: true,
+				Description: "The Client Secret of the service principal. This can also be sourced from the `DG_SERVICEBUS_CLIENTSECRET` Environment Variable.",
 			},
 		},
 	}
 }
 
-func (p *nservicebusProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	tflog.Info(ctx, "Configuring HashiCups client")
 
-	// Retrieve provider data from configuration
-	var config nservicebusProviderModel
-	diags := req.Config.Get(ctx, &config)
-	resp.Diagnostics.Append(diags...)
+	var config DgServicebusProviderModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if config.AccessToken.IsUnknown() {
+	if config.Hostname.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("host"),
-			"Unknown HashiCups API Host",
-			"The provider cannot create the HashiCups API client as there is an unknown configuration value for the HashiCups API host. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the HASHICUPS_HOST environment variable.",
+			path.Root("azure_servicebus_hostname"),
+			"Unknown Azure Service Bus Hostname",
+			"The provider cannot determine which Azure Service Bus instance to connect to, as there is an unknown configuration value for the hostname. " +
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_HOSTNAME environment variable.",
+		)
+	}
+
+	if config.TenantId.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("tenant_id"),
+			"Unknown Tenant Id",
+			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the tenant id. " +
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_TENANTID environment variable.",
+		)
+	}
+
+	if config.ClientId.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_id"),
+			"Unknown Client Id",
+			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the client id. " +
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_CLIENTID environment variable.",
+		)
+	}
+
+	if config.ClientSecret.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_secret"),
+			"Unknown Client Secret",
+			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the client secret. " +
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_CLIENTSECRET environment variable.",
 		)
 	}
 
@@ -88,38 +126,48 @@ func (p *nservicebusProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 
-	accessToken := os.Getenv("XXXX")
+	tenantId := os.Getenv("DG_SERVICEBUS_TENANTID")
+	clientId := os.Getenv("DG_SERVICEBUS_CLIENTID")
+	clientSecret := os.Getenv("DG_SERVICEBUS_CLIENTSECRET")
+	
 
-	if !config.AccessToken.IsNull() {
-		accessToken = config.AccessToken.ValueString()
+	if !config.TenantId.IsNull() {
+		tenantId = config.TenantId.ValueString()
 	}
 
-	// if accessToken == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("accessToken"),
-	// 		"Missing HashiCups API Host",
-	// 		"The provider cannot create the HashiCups API client as there is a missing or empty value for the HashiCups API host. "+
-	// 			"Set the host value in the configuration or use the HASHICUPS_HOST environment variable. "+
-	// 			"If either is already set, ensure the value is not empty.",
-	// 	)
-	// }
+	if !config.ClientId.IsNull() {
+		clientId = config.ClientId.ValueString()
+	}
+
+	if !config.ClientSecret.IsNull() {
+		clientSecret = config.ClientSecret.ValueString()
+	}
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	ctx = tflog.SetField(ctx, "nservicebus_access_token", accessToken)
-	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "nservicebus_access_token")
+	ctx = tflog.SetField(ctx, "dgservicebus_client_secret", clientSecret)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dgservicebus_client_secret")
 
 	tflog.Debug(ctx, "Creating Azure Authenticaion Credential")
 
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	var credential azcore.TokenCredential
+	var err error
+
+	if tenantId != "" && clientId != "" && clientSecret != "" {
+		credential, err = azidentity.NewClientSecretCredential(tenantId, clientId, clientSecret, nil)
+	} else {
+		credential, err = azidentity.NewDefaultAzureCredential(nil)
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to Create HashiCups API Client",
-			"An unexpected error occurred when creating the HashiCups API client. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"HashiCups Client Error: "+err.Error(),
+			"Unable to Create Azure Client",
+			"Authentication failed. Either provide the necessary information to authenticate with a service principal "+
+				"('tenant_id', 'client_id' and 'client_secret') or ensure there is a token source configured for the default credential available. "+
+				"See a list token sources here: https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python'\n"+
+				"Azure Client Error: "+err.Error(),
 		)
 		return
 	}
@@ -127,7 +175,7 @@ func (p *nservicebusProvider) Configure(ctx context.Context, req provider.Config
 	client, err := azservicebus.NewClient(config.Hostname.ValueString(), credential, nil)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"An error occurred while configuring the resource",
+			"An error occurred while configuring the provider",
 			"Could not create Azure Service Bus client: "+err.Error(),
 		)
 
@@ -137,15 +185,17 @@ func (p *nservicebusProvider) Configure(ctx context.Context, req provider.Config
 	resp.DataSourceData = client
 	resp.ResourceData = client
 
-	tflog.Info(ctx, "Configured HashiCups client", map[string]any{"success": true})
+	tflog.Info(ctx, "Configured Azure Service Bus client", map[string]any{"success": true})
 }
 
-func (p *nservicebusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+func (p *DgServicebusProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		endpoint.NewEndpointDataSource,
+	}
 }
 
-func (p *nservicebusProvider) Resources(_ context.Context) []func() resource.Resource {
+func (p *DgServicebusProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewEndpointResource,
+		endpoint.NewEndpointResource,
 	}
 }

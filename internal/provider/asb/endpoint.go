@@ -9,17 +9,17 @@ import (
 
 func (w *AsbClientWrapper) CreateEndpointWithDefaultRule(
 	azureContext context.Context,
-	plan EndpointModel,
+	model EndpointModel,
 ) error {
-	queueName, err := w.GetFullyQualifiedName(azureContext, plan.EndpointName)
+	queueName, err := w.GetFullyQualifiedName(azureContext, model.EndpointName)
 	if err != nil {
 		return err
 	}
 
 	_, err = w.Client.CreateSubscription(
 		azureContext,
-		plan.TopicName,
-		plan.EndpointName,
+		model.TopicName,
+		model.EndpointName,
 		&az.CreateSubscriptionOptions{
 			Properties: &az.SubscriptionProperties{
 				ForwardTo:                        to.Ptr(queueName),
@@ -40,14 +40,25 @@ func (w *AsbClientWrapper) CreateEndpointWithDefaultRule(
 
 func (w *AsbClientWrapper) DeleteEndpoint(
 	azureContext context.Context,
-	plan EndpointModel,
+	model EndpointModel,
 ) error {
 	_, err := w.Client.DeleteSubscription(
 		azureContext,
-		plan.TopicName,
-		plan.EndpointName,
+		model.TopicName,
+		model.EndpointName,
 		nil,
 	)
 
 	return err
+}
+
+func (w *AsbClientWrapper) EndpointExists(ctx context.Context, model EndpointModel) (bool, error) {
+	subscription, err := w.Client.GetSubscription(ctx, model.TopicName, model.EndpointName, nil)
+	if err != nil {
+		return false, err
+	}
+	if subscription == nil {
+		return false, nil
+	}
+	return true, nil
 }
