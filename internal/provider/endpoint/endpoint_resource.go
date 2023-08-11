@@ -106,21 +106,21 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			"queue_exists": schema.BoolAttribute{
 				Computed: true,
-				Description: "Debugging attribute to check if the queue exists.",
+				Description: "Internal attribute used to track whether the queue exists.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"endpoint_exists": schema.BoolAttribute{
 				Computed: true,
-				Description: "Debugging attribute to check if the endpoint exists.",
+				Description: "Internal attribute used to track whether the endpoint exists.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"should_create_queue": schema.BoolAttribute{
 				Computed: true,
-				Description: "Debugging attribute to check if the queue should be created.",
+				Description: "Internal attribute used to track whether the queue should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateQueueIfNotExistsModifier{},
 					boolplanmodifier.UseStateForUnknown(),
@@ -128,7 +128,7 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			"should_create_endpoint": schema.BoolAttribute{
 				Computed: true,
-				Description: "Debugging attribute to check if the endpoint should be created.",
+				Description: "Internal attribute used to track whether the endpoint should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateEndpointIfNotExistsModifier{},
 					shouldCreateEndpointIfSubscriberAddedModifier{},
