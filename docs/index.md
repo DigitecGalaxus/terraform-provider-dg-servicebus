@@ -7,14 +7,14 @@ description: |-
 
 # dg-servicebus Provider
 
-This provider allows you to manage [Endpoints](https://docs.particular.net/nservicebus/endpoints/) for [NServiceBus](https://docs.particular.net/nservicebus/) on Azure.
+This provider allows you to manage [Endpoints](https://docs.particular.net/nservicebus/endpoints/) for [NServiceBus](https://docs.particular.net/nservicebus/) on Azure Service Bus.
 
 ### Authentication
 
-To authenticate, either provide credentials for a Service Principle on Azure or authenticate locally with the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
-The Service Principal Credentials have higher priority over the Azure CLI and will be used first when provided.
+To authenticate, either provide credentials for an Azure Service Principle or authenticate using [default credentials](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python).
+The Service Principal credentials take priority over the default credentials and will always be used, if provided.
 
-To authenticate with the Azure CLI, do an `az login` in the shell before exectuing Terraform.
+To run the provider locally, install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), which acts as a token source for the default credential. Be sure to run `az login` first, to log in with your account.
 
 ## Example Usage
 
