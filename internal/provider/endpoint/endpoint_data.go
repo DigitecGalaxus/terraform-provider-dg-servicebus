@@ -28,6 +28,10 @@ type endpointDataSource struct {
 
 func (d *endpointDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
+		resp.Diagnostics.AddError(
+			"Provider Data not set",
+			"Endpoint cannot be read, Provider Data is missing",
+		)
 		return
 	}
 
@@ -124,8 +128,8 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	subscriptionNames := make([]string, 0, len(subscriptions))
-	for k := range subscriptions {
-		subscriptionNames = append(subscriptionNames, k)
+	for subscription := range subscriptions {
+		subscriptionNames = append(subscriptionNames, subscription)
 	}
 
 	state.Subscriptions = subscriptionNames
