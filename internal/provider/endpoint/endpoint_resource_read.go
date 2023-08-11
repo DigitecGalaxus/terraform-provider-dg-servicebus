@@ -98,43 +98,44 @@ func (r *endpointResource) checkEndpoint(ctx context.Context, model asb.Endpoint
 	return true
 }
 
-func (r *endpointResource) checkSubscriptions(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
-	actualSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, model)
-
+func (r *endpointResource) checkSubscriptions(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, loadedState)
 	if err != nil {
 		return false
 	}
 
-	foundSubscriptions := []string{}
-	actualSubscriptionNames := make([]string, 0, len(actualSubscriptions))
-	for k := range actualSubscriptions {
-		actualSubscriptionNames = append(actualSubscriptionNames, k)
+	subscriptionsInAzureAndState := []string{}
+	azureSubscriptionNames := make([]string, 0, len(azureSubscriptions))
+	for k := range azureSubscriptions {
+		azureSubscriptionNames = append(azureSubscriptionNames, k)
 	}
-	combinedSubscriptions := getUniqueElements(append(model.Subscriptions, actualSubscriptionNames...))
+	combinedSubscriptions := getUniqueElements(append(loadedState.Subscriptions, azureSubscriptionNames...))
 
 	for _, subscription := range combinedSubscriptions {
-		existsInState := slices.Contains(model.Subscriptions, subscription)
-		actuallyExists := slices.Contains(actualSubscriptionNames, subscription)
-		if (existsInState && actuallyExists) || (!existsInState && actuallyExists) {
-			subscriptionFilter := actualSubscriptions[subscription].Filter
-			if subscriptionFilter != asb.MakeSubscriptionFilter(subscription) {
-				err := r.client.DeleteEndpointSubscription(ctx, model, subscription)
-				if err != nil {
-					if err != nil {
-						resp.Diagnostics.AddError(
-							"Error reading subscriptions",
-							"Unexpected error occured while reading subscriptions, error: "+err.Error(),
-						)
-						return false
-					}
-				}
-				continue
-			}
-			foundSubscriptions = append(foundSubscriptions, subscription)
+		existsInState := slices.Contains(loadedState.Subscriptions, subscription)
+		existsInAzure := slices.Contains(azureSubscriptionNames, subscription)
+		if (!existsInState && !existsInAzure) || (existsInState && !existsInAzure) {
+			continue
+		}
+
+		subscriptionFilter := azureSubscriptions[subscription].Filter
+		if subscriptionFilter == asb.MakeSubscriptionFilter(subscription) {
+			subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, subscription)
+			continue
+		}
+
+		// We delete the subscription if the filter is invalid, such that it can be recreated at next update
+		err := r.client.DeleteEndpointSubscription(ctx, loadedState, subscription)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error reading subscriptions",
+				"Unexpected error occured while reading subscriptions, error: "+err.Error(),
+			)
+			return false
 		}
 	}
 
-	state.Subscriptions = foundSubscriptions
+	state.Subscriptions = subscriptionsInAzureAndState
 	return true
 }
 
