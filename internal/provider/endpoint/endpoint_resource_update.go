@@ -2,8 +2,10 @@ package endpoint
 
 import (
 	"context"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"golang.org/x/exp/slices"
 )
 
 func (r *endpointResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -50,7 +52,7 @@ func (r *endpointResource) UpdateSubscriptions(
 	subscriptions := getUniqueElements(append(plan.Subscriptions, previousState.Subscriptions...))
 
 	for _, subscription := range subscriptions {
-		shouldBeDeleted := !arrayContains(plan.Subscriptions, subscription)
+		shouldBeDeleted := !slices.Contains(plan.Subscriptions, subscription)
 		if shouldBeDeleted {
 			err := r.client.DeleteEndpointSubscription(ctx, plan, subscription)
 			if err != nil {
@@ -59,7 +61,7 @@ func (r *endpointResource) UpdateSubscriptions(
 			continue
 		}
 
-		shouldBeCreated := !arrayContains(previousState.Subscriptions, subscription)
+		shouldBeCreated := !slices.Contains(previousState.Subscriptions, subscription)
 		if shouldBeCreated {
 			err := r.client.CreateEndpointSubscription(ctx, plan, subscription)
 			if err != nil {
