@@ -135,7 +135,6 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 	state.Subscriptions = subscriptionNames
 
 	queue, err := d.client.GetEndpointQueue(ctx, model)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error getting Queue",
