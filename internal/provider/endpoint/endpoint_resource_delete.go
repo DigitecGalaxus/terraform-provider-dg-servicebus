@@ -17,9 +17,8 @@ func (r *endpointResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	model := plan.ToAsbModel()
-	azureContext := context.Background()
 
-	err := r.client.DeleteEndpointQueue(azureContext, model)
+	err := r.client.DeleteEndpointQueue(ctx, model)
 	if err != nil && !statusCodeIsOk(err) {
 		resp.Diagnostics.AddError(
 			"Error deleting queue",
@@ -28,7 +27,7 @@ func (r *endpointResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	err = r.client.DeleteEndpoint(azureContext, model)
+	err = r.client.DeleteEndpoint(ctx, model)
 	if err != nil && !statusCodeIsOk(err) {
 		resp.Diagnostics.AddError(
 			"Error deleting subscription",
@@ -38,7 +37,7 @@ func (r *endpointResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	for _, queue := range plan.AdditionalQueues {
-		err := r.client.DeleteAdditionalQueue(azureContext, queue)
+		err := r.client.DeleteAdditionalQueue(ctx, queue)
 		if err != nil && !statusCodeIsOk(err) {
 			resp.Diagnostics.AddError(
 				"Error deleting queue",
