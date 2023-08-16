@@ -149,7 +149,7 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 	ctx = tflog.SetField(ctx, "dgservicebus_client_secret", clientSecret)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dgservicebus_client_secret")
 
-	tflog.Debug(ctx, "Creating Azure Authenticaion Credential")
+	tflog.Debug(ctx, "Creating Azure Authentication Credential")
 
 	var credential azcore.TokenCredential
 	var err error

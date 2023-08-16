@@ -56,7 +56,6 @@ func statusCodeIsOk(err error) bool {
 		if respError.StatusCode == http.StatusNotFound {
 			return true
 		}
-		break
 	default:
 		return false
 	}

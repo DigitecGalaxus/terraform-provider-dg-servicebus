@@ -38,7 +38,7 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 
 			subscription := Subscription{
 				Name: rule.Name,
-				Filter: rule.Filter.(*az.SQLFilter).Expression,
+				Filter: rule.Filter.(*az.SQLFilter).Expression, //nolint:forcetypeassert // We know this is a SQLFilter
 			}
 			subscriptions[rule.Name] = subscription
 		}
