@@ -1,33 +1,5 @@
-# Terraform Provider Hashicups
+# Terraform Provider DG ServiceBus
 
-This repo is a companion repo to the [Call APIs with Terraform Providers](https://learn.hashicorp.com/collections/terraform/providers-plugin-framework) tutorials.
+This repository contains a Terraform provider for managing NServiceBus Endpoints on Azure Service Bus. It tries to solves a specific issue, currently present when using the official Azure Resource Manager Provider, in conjunction with NServiceBus. The issue is described in detail [in this issue](https://github.com/hashicorp/terraform-provider-azurerm/issues/20718)
 
-In the collection, you will use the HashiCups provider as a bridge between Terraform and the HashiCups API. Then, extend Terraform by recreating the HashiCups provider. By the end of this collection, you will be able to take these intuitions to create your own custom Terraform provider.
-
-## Build provider
-
-Run the following command to build the provider
-
-```shell
-$ go build -o terraform-provider-nservicebus
-```
-
-## Test sample configuration
-
-First, build and install the provider.
-
-```shell
-$ make install
-```
-
-Then, navigate to the `examples` directory.
-
-```shell
-$ cd examples
-```
-
-Run the following command to initialize the workspace and apply the sample configuration.
-
-```shell
-$ terraform init && terraform apply
-```
+For additional information about provider development see the [Plugin Framework documentation](https://developer.hashicorp.com/terraform/plugin).
