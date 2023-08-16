@@ -29,8 +29,9 @@ jobs:
         with:
           version: latest
 
-  generate:
+  generate-documentation:
     runs-on: ubuntu-latest
+    name: "Generate Documentation"
     steps:
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
       - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
@@ -38,7 +39,7 @@ jobs:
           go-version-file: "go.mod"
           cache: true
       - run: go generate ./...
-      - name: git diff
+      - name: Comparing generated Terraform documentation against main
         run: |
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
