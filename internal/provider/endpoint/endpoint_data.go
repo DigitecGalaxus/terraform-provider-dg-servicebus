@@ -41,7 +41,6 @@ func (d *endpointDataSource) Configure(_ context.Context, req datasource.Configu
 			"Unexpected Data source Configuration Type",
 			fmt.Sprintf("Expected *azservicebus.Client, got %T", req.ProviderData),
 		)
-
 		return
 	}
 

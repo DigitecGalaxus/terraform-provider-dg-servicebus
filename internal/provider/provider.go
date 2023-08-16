@@ -22,6 +22,11 @@ var (
 	_ provider.Provider = &DgServicebusProvider{}
 )
 
+func (p *DgServicebusProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "dgservicebus"
+	resp.Version = p.version
+}
+
 // New is a helper function to simplify provider server and testing implementation.
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
@@ -45,11 +50,6 @@ type DgServicebusProviderModel struct {
 	ClientSecret types.String `tfsdk:"client_secret"`
 }
 
-func (p *DgServicebusProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "dgservicebus"
-	resp.Version = p.version
-}
-
 func (p *DgServicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
@@ -59,18 +59,18 @@ func (p *DgServicebusProvider) Schema(_ context.Context, _ provider.SchemaReques
 				Description: "The hostname of the Azure Service Bus instance",
 			},
 			"tenant_id": schema.StringAttribute{
-				Optional: true,
-				Sensitive: false,
+				Optional:    true,
+				Sensitive:   false,
 				Description: "The Tenant ID of the service principal. This can also be sourced from the `DG_SERVICEBUS_TENANTID` Environment Variable.",
 			},
 			"client_id": schema.StringAttribute{
-				Optional: true,
-				Sensitive: false,
+				Optional:    true,
+				Sensitive:   false,
 				Description: "The Client ID of the service principal. This can also be sourced from the `DG_SERVICEBUS_CLIENTID` Environment Variable.",
 			},
 			"client_secret": schema.StringAttribute{
-				Optional: true,
-				Sensitive: true,
+				Optional:    true,
+				Sensitive:   true,
 				Description: "The Client Secret of the service principal. This can also be sourced from the `DG_SERVICEBUS_CLIENTSECRET` Environment Variable.",
 			},
 		},
@@ -90,7 +90,7 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("azure_servicebus_hostname"),
 			"Unknown Azure Service Bus Hostname",
-			"The provider cannot determine which Azure Service Bus instance to connect to, as there is an unknown configuration value for the hostname. " +
+			"The provider cannot determine which Azure Service Bus instance to connect to, as there is an unknown configuration value for the hostname. "+
 				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_HOSTNAME environment variable.",
 		)
 	}
@@ -99,7 +99,7 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("tenant_id"),
 			"Unknown Tenant Id",
-			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the tenant id. " +
+			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the tenant id. "+
 				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_TENANTID environment variable.",
 		)
 	}
@@ -108,7 +108,7 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_id"),
 			"Unknown Client Id",
-			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the client id. " +
+			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the client id. "+
 				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_CLIENTID environment variable.",
 		)
 	}
@@ -117,7 +117,7 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_secret"),
 			"Unknown Client Secret",
-			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the client secret. " +
+			"The provider cannot determine which authentication configuration to use, as there is an unknown configuration value for the client secret. "+
 				"Either target apply the source of the value first, set the value statically in the configuration, or use the DG_SERVICEBUS_CLIENTSECRET environment variable.",
 		)
 	}
@@ -129,7 +129,6 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 	tenantId := os.Getenv("DG_SERVICEBUS_TENANTID")
 	clientId := os.Getenv("DG_SERVICEBUS_CLIENTID")
 	clientSecret := os.Getenv("DG_SERVICEBUS_CLIENTSECRET")
-	
 
 	if !config.TenantId.IsNull() {
 		tenantId = config.TenantId.ValueString()
@@ -150,7 +149,7 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 	ctx = tflog.SetField(ctx, "dgservicebus_client_secret", clientSecret)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dgservicebus_client_secret")
 
-	tflog.Debug(ctx, "Creating Azure Authenticaion Credential")
+	tflog.Debug(ctx, "Creating Azure Authentication Credential")
 
 	var credential azcore.TokenCredential
 	var err error

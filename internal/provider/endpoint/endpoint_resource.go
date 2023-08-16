@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -14,8 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-
 
 var (
 	_ resource.Resource                = &endpointResource{}
@@ -36,8 +35,17 @@ func (r *endpointResource) Configure(_ context.Context, req resource.ConfigureRe
 		return
 	}
 
+	client, ok := req.ProviderData.(*az.Client)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configuration Type",
+			fmt.Sprintf("Expected *azservicebus.Client, got %T", req.ProviderData),
+		)
+		return
+	}
+
 	r.client = &asb.AsbClientWrapper{
-		Client: req.ProviderData.(*az.Client),
+		Client: client,
 	}
 }
 

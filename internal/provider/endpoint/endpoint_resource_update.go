@@ -21,19 +21,37 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 	previousStateModel := previousState.ToAsbModel()
 
 	if plan.ShouldCreateQueue.ValueBool() {
-		r.client.CreateEndpointQueue(ctx, planModel.EndpointName, planModel.QueueOptions)
+		err := r.client.CreateEndpointQueue(ctx, planModel.EndpointName, planModel.QueueOptions)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating queue",
+				"Queue creation failed with error: " + err.Error(),
+			)
+			return
+		}
 	}
 
 	if plan.ShouldCreateEndpoint.ValueBool() {
-		r.client.CreateEndpointWithDefaultRule(ctx, planModel)
+		err := r.client.CreateEndpointWithDefaultRule(ctx, planModel)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating endpoint",
+				"Endpoint creation failed with error: " + err.Error(),
+			)
+			return
+		}
 	}
 
-	r.UpdateSubscriptions(ctx, previousStateModel, planModel)
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-	if resp.Diagnostics.HasError() {
+	err := r.UpdateSubscriptions(ctx, previousStateModel, planModel)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating subscriptions",
+			"Subscription update failed with error: " + err.Error(),
+		)
 		return
 	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *endpointResource) UpdateSubscriptions(

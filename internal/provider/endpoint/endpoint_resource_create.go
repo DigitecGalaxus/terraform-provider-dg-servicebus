@@ -82,7 +82,6 @@ func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.En
 			)
 			return false
 		}
-		break
 	default:
 		resp.Diagnostics.AddError(
 			"Error creating queue",

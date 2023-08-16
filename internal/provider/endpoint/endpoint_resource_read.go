@@ -129,7 +129,7 @@ func (r *endpointResource) checkSubscriptions(ctx context.Context, loadedState a
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error reading subscriptions",
-				"Unexpected error occured while reading subscriptions, error: "+err.Error(),
+				"Unexpected error occurred while reading subscriptions, error: "+err.Error(),
 			)
 			return false
 		}
