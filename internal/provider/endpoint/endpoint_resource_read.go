@@ -25,7 +25,7 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	var success bool
 
-	success = r.checkEndpointQueue(ctx, model, &state, resp)
+	success = r.updateEndpointQueueState(ctx, model, &state, resp)
 	if !success {
 		return
 	}
@@ -33,21 +33,21 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 	hasSubscribers := len(model.Subscriptions) > 0
 
 	if hasSubscribers {
-		success = r.checkEndpoint(ctx, model, &state, resp)
+		success = r.updateEndpointState(ctx, model, &state, resp)
 		if !success {
 			return
 		}
 
 		// There are no subscriptions to check if the endpoint does not exist
 		if state.EndpointExists.ValueBool() {
-			success = r.checkSubscriptions(ctx, model, &state, resp)
+			success = r.updateEndpointSubscriptionState(ctx, model, &state, resp)
 			if !success {
 				return
 			}
 		}
 	}
 
-	success = r.checkAdditionalQueues(ctx, &state, resp)
+	success = r.updateAdditionalQueueState(ctx, &state, resp)
 	if !success {
 		return
 	}
@@ -59,7 +59,7 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 }
 
-func (r *endpointResource) checkEndpointQueue(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateEndpointQueueState(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
 	queue, err := r.client.GetEndpointQueue(ctx, model)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -76,13 +76,20 @@ func (r *endpointResource) checkEndpointQueue(ctx context.Context, model asb.End
 			fmt.Sprintf("Endpoint Queue %s does not exists on Azure, whole resource will be recreated at apply", state.EndpointName.ValueString()),
 		)
 	} else {
-		state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(*queue.QueueProperties.MaxSizeInMegabytes))
-		state.QueueOptions.EnablePartitioning = types.BoolValue(*queue.QueueProperties.EnablePartitioning)
+		maxQueueSizeInMb := *queue.QueueProperties.MaxSizeInMegabytes
+		partitioningIsEnabled := *queue.QueueProperties.EnablePartitioning
+		if partitioningIsEnabled {
+			maxQueueSizeInMb = maxQueueSizeInMb / 16
+		}
+
+		state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
+		state.QueueOptions.EnablePartitioning = types.BoolValue(partitioningIsEnabled)
 	}
+	
 	return true
 }
 
-func (r *endpointResource) checkEndpoint(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateEndpointState(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
 	endpointExists, err := r.client.EndpointExists(ctx, model)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -98,7 +105,7 @@ func (r *endpointResource) checkEndpoint(ctx context.Context, model asb.Endpoint
 	return true
 }
 
-func (r *endpointResource) checkSubscriptions(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
 	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, loadedState)
 	if err != nil {
 		return false
@@ -139,7 +146,7 @@ func (r *endpointResource) checkSubscriptions(ctx context.Context, loadedState a
 	return true
 }
 
-func (r *endpointResource) checkAdditionalQueues(ctx context.Context, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateAdditionalQueueState(ctx context.Context, state *endpointResourceModel, resp *resource.ReadResponse) bool {
 	for _, queue := range state.AdditionalQueues {
 		queueExists, err := r.client.QueueExists(ctx, queue)
 		if err != nil {
