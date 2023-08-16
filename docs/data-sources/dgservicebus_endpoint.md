@@ -8,7 +8,9 @@ description: |-
 
 # dgservicebus_endpoint (Data Source)
 
+The Endpoint data source porvides information about an existing Endpoint.
 
+## Example Usage
 
 ```terraform
 data "dgservicebus_endpoint" "example" {
