@@ -32,27 +32,22 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 			if rule.Name == "$Default" {
 				continue
 			}
-			if !IsSqlFilter(rule) {
+
+			sqlFilter, ok := rule.Filter.(*az.SQLFilter)
+			if !ok {
 				continue
 			}
 
 			subscription := Subscription{
 				Name: rule.Name,
-				Filter: rule.Filter.(*az.SQLFilter).Expression, //nolint:forcetypeassert // We know this is a SQLFilter
+				Filter: sqlFilter.Expression,
 			}
+			
 			subscriptions[rule.Name] = subscription
 		}
 	}
-	return subscriptions, nil
-}
 
-func IsSqlFilter(rule az.RuleProperties) bool {
-	switch rule.Filter.(type) {
-	case *az.SQLFilter:
-		return true
-	default:
-		return false
-	}
+	return subscriptions, nil
 }
 
 func (w *AsbClientWrapper) CreateEndpointSubscription(
