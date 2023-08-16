@@ -72,6 +72,9 @@ type endpointResourceQueueOptionsModel struct {
 
 func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "The Endpoint resource allows consumers to create and manage an NServiceBus Endpoint. "+
+			"When initially creating the Endpoint, a default deny-all rule ensures that no invalid messages are received, before the configured subscription rules have been applied.",
+
 		Attributes: map[string]schema.Attribute{
 			"endpoint_name": schema.StringAttribute{
 				Required:    true,

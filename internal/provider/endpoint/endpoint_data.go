@@ -67,6 +67,8 @@ func (d *endpointDataSource) Metadata(_ context.Context, req datasource.Metadata
 
 func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "The Endpoint data source porvides information about an existing Endpoint.",
+		
 		Attributes: map[string]schema.Attribute{
 			"endpoint_name": schema.StringAttribute{
 				Required: true,

@@ -1,17 +1,4 @@
-terraform {
-  required_providers {
-    dgservicebus = {
-      source = "hashicorp.com/edu/dg-servicebus"
-    }
-  }
-}
-
-provider "dgservicebus" {
-  azure_servicebus_hostname = "terraform-provider-test.servicebus.windows.net"
-}
-
-
-resource "dgservicebus_endpoint" "dev" {
+resource "dgservicebus_endpoint" "example" {
   endpoint_name = "dg-nservicebus-test-endpoint"
   topic_name    = "bundle-1"
   subscriptions = [
