@@ -55,7 +55,7 @@ func (r *endpointResource) Metadata(_ context.Context, req resource.MetadataRequ
 
 func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The Endpoint resource allows consumers to create and manage an NServiceBus Endpoint. "+
+		Description: "The Endpoint resource allows consumers to create and manage an NServiceBus Endpoint. " +
 			"When initially creating the Endpoint, a default deny-all rule ensures that no invalid messages are received, before the configured subscription rules have been applied.",
 
 		Attributes: map[string]schema.Attribute{
@@ -78,18 +78,9 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				ElementType: types.StringType,
 				Description: "The list of subscriptions to create on the endpoint.",
 			},
-			"malformed_subscriptions": schema.ListAttribute{
+			"has_malformed_filters": schema.BoolAttribute{
 				Computed:    true,
-				ElementType: types.StringType,
-				Description: "Internal attribute used to track existing subscriptions that are malformed.",
-			},
-			"subscriptions_to_update": schema.ListAttribute{
-				Computed:    true,
-				ElementType: types.StringType,
-				Description: "Internal attribute used track subscriptions that need to be re-created during the update step.",
-				PlanModifiers: []planmodifier.List{
-					shouldUpdateMalformedEndpointSubscriptionModifier{},
-				},
+				Description: "Internal attribute used to track whether the endpoint has malformed filters.",
 			},
 			"additional_queues": schema.ListAttribute{
 				Optional:    true,
@@ -97,7 +88,7 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Description: "Additional queues to create for the endpoint.",
 			},
 			"queue_options": schema.SingleNestedAttribute{
-				Required: true,
+				Required:    true,
 				Description: "The options for the queue, which is created for the endpoint.",
 				Attributes: map[string]schema.Attribute{
 					"enable_partitioning": schema.BoolAttribute{
@@ -112,21 +103,21 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 			"queue_exists": schema.BoolAttribute{
-				Computed: true,
+				Computed:    true,
 				Description: "Internal attribute used to track whether the queue exists.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"endpoint_exists": schema.BoolAttribute{
-				Computed: true,
+				Computed:    true,
 				Description: "Internal attribute used to track whether the endpoint exists.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"should_create_queue": schema.BoolAttribute{
-				Computed: true,
+				Computed:    true,
 				Description: "Internal attribute used to track whether the queue should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateQueueIfNotExistsModifier{},
@@ -134,7 +125,7 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 			"should_create_endpoint": schema.BoolAttribute{
-				Computed: true,
+				Computed:    true,
 				Description: "Internal attribute used to track whether the endpoint should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateEndpointIfNotExistsModifier{},
@@ -142,22 +133,29 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"should_update_subscriptions": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Internal attribute used to track whether the subscriptions should be updated.",
+				PlanModifiers: []planmodifier.Bool{
+					shouldUpdateMalformedEndpointSubscriptionModifier{},
+				},
+			},
 		},
 	}
 }
 
 type endpointResourceModel struct {
-	EndpointName         types.String                      `tfsdk:"endpoint_name"`
-	TopicName            types.String                      `tfsdk:"topic_name"`
-	Subscriptions        []string                          `tfsdk:"subscriptions"`
-	AdditionalQueues     []string                          `tfsdk:"additional_queues"`
-	QueueOptions         endpointResourceQueueOptionsModel `tfsdk:"queue_options"`
-	QueueExists          types.Bool                        `tfsdk:"queue_exists"`
-	EndpointExists       types.Bool                        `tfsdk:"endpoint_exists"`
-	ShouldCreateQueue    types.Bool                        `tfsdk:"should_create_queue"`
-	ShouldCreateEndpoint types.Bool                        `tfsdk:"should_create_endpoint"`
-	SubscriptionsToUpdate []string                         `tfsdk:"subscriptions_to_update"`
-	MalformedSubscriptions []string                        `tfsdk:"malformed_subscriptions"`
+	EndpointName              types.String                      `tfsdk:"endpoint_name"`
+	TopicName                 types.String                      `tfsdk:"topic_name"`
+	Subscriptions             []string                          `tfsdk:"subscriptions"`
+	AdditionalQueues          []string                          `tfsdk:"additional_queues"`
+	QueueOptions              endpointResourceQueueOptionsModel `tfsdk:"queue_options"`
+	QueueExists               types.Bool                        `tfsdk:"queue_exists"`
+	HasMalformedFilters       types.Bool                        `tfsdk:"has_malformed_filters"`
+	EndpointExists            types.Bool                        `tfsdk:"endpoint_exists"`
+	ShouldCreateQueue         types.Bool                        `tfsdk:"should_create_queue"`
+	ShouldCreateEndpoint      types.Bool                        `tfsdk:"should_create_endpoint"`
+	ShouldUpdateSubscriptions types.Bool                        `tfsdk:"should_update_subscriptions"`
 }
 
 type endpointResourceQueueOptionsModel struct {

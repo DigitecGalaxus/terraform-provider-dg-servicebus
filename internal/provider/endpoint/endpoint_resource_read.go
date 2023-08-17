@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -22,6 +23,8 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 	state.EndpointExists = types.BoolValue(true)
 	state.ShouldCreateQueue = types.BoolValue(false)
 	state.ShouldCreateEndpoint = types.BoolValue(false)
+	state.ShouldUpdateSubscriptions = types.BoolValue(false)
+	state.HasMalformedFilters = types.BoolValue(false)
 
 	var success bool
 
@@ -116,23 +119,27 @@ func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, 
 	for k := range azureSubscriptions {
 		azureSubscriptionNames = append(azureSubscriptionNames, k)
 	}
-	combinedSubscriptions := getUniqueElements(append(loadedState.Subscriptions, azureSubscriptionNames...))
 
-	for _, subscription := range combinedSubscriptions {
-		existsInState := slices.Contains(loadedState.Subscriptions, subscription)
-		existsInAzure := slices.Contains(azureSubscriptionNames, subscription)
-		if (!existsInState && !existsInAzure) || (existsInState && !existsInAzure) {
-			continue
-		}
+	for _, stateSubscription := range loadedState.Subscriptions {
+		for _, azureSubscription := range azureSubscriptionNames {
+			existsInState := slices.ContainsFunc(loadedState.Subscriptions, func(s string) bool {
+				return strings.HasSuffix(s, azureSubscription)
+			})
+			existsInAzure := slices.ContainsFunc(azureSubscriptionNames, func(s string) bool {
+				return strings.HasSuffix(stateSubscription, s)
+			})
+			if (!existsInState && !existsInAzure) || (existsInState && !existsInAzure) {
+				continue
+			}
 
-		subscriptionFilter := azureSubscriptions[subscription].Filter
-		subscriptionFilterIsCorrect := asb.MakeSubscriptionFilter(subscription) == subscriptionFilter
-		if !subscriptionFilterIsCorrect {
-			state.MalformedSubscriptions = append(state.SubscriptionsToUpdate, subscription)
-			continue
+			subscriptionFilter := azureSubscriptions[azureSubscription].Filter
+			if !asb.IsFilterCorrect(subscriptionFilter, stateSubscription) {
+				state.HasMalformedFilters = types.BoolValue(true)
+				continue
+			}
+
+			subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, stateSubscription)
 		}
-		
-		subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, subscription)
 	}
 
 	state.Subscriptions = subscriptionsInAzureAndState

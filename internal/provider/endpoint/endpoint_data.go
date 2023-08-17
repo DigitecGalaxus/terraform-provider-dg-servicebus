@@ -68,14 +68,14 @@ func (d *endpointDataSource) Metadata(_ context.Context, req datasource.Metadata
 func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "The Endpoint data source porvides information about an existing Endpoint.",
-		
+
 		Attributes: map[string]schema.Attribute{
 			"endpoint_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
 				Description: "The name of the endpoint.",
 			},
 			"topic_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
 				Description: "The name of the topic, in which the endpoint is created",
 			},
 			"subscriptions": schema.ListAttribute{
@@ -84,7 +84,7 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				ElementType: types.StringType,
 			},
 			"queue_options": schema.SingleNestedAttribute{
-				Computed: true,
+				Computed:    true,
 				Description: "The configuration used when creating any queues for that endpoint",
 				Attributes: map[string]schema.Attribute{
 					"enable_partitioning": schema.BoolAttribute{

@@ -2,6 +2,9 @@ package endpoint
 
 import (
 	"context"
+	"strings"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"golang.org/x/exp/slices"
@@ -15,6 +18,8 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 	planModel := plan.ToAsbModel()
 
+	time.Sleep(5 * time.Second)
+
 	previousState := endpointResourceModel{}
 	req.State.Get(ctx, &previousState)
 
@@ -23,7 +28,7 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error creating queue",
-				"Queue creation failed with error: " + err.Error(),
+				"Queue creation failed with error: "+err.Error(),
 			)
 			return
 		}
@@ -34,7 +39,7 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error creating endpoint",
-				"Endpoint creation failed with error: " + err.Error(),
+				"Endpoint creation failed with error: "+err.Error(),
 			)
 			return
 		}
@@ -44,9 +49,20 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating subscriptions",
-			"Subscription update failed with error: " + err.Error(),
+			"Subscription update failed with error: "+err.Error(),
 		)
 		return
+	}
+
+	if plan.ShouldUpdateSubscriptions.ValueBool() {
+		err := r.updateMalformedSubscriptions(ctx, previousState, plan)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating subscriptions",
+				"Subscription update failed with error: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -83,14 +99,40 @@ func (r *endpointResource) UpdateSubscriptions(
 	return nil
 }
 
-
 func (r *endpointResource) updateMalformedSubscriptions(
 	ctx context.Context,
 	state endpointResourceModel,
 	plan endpointResourceModel,
 ) error {
-	for _, subscription := range plan.SubscriptionsToUpdate {
-		err := r.client.EnsureEndpointSubscriptionFilterCorrect(ctx, plan.ToAsbModel(), subscription)
+	azureSubscription, err := r.client.GetEndpointSubscriptions(ctx, plan.ToAsbModel())
+	if err != nil {
+		return err
+	}
+
+	getFullSubscriptionNameBySuffixInState := func(subscriptionSuffix string) *string {
+		for _, subscription := range state.Subscriptions {
+			if strings.HasSuffix(subscription, subscriptionSuffix) {
+				return &subscription
+			}
+		}
+
+		return nil
+	}
+
+	for _, subscription := range azureSubscription {
+		subscriptionName := getFullSubscriptionNameBySuffixInState(subscription.Name)
+		if subscriptionName == nil {
+			err := r.client.DeleteEndpointSubscription(ctx, plan.ToAsbModel(), subscription.Name)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		if asb.IsFilterCorrect(subscription.Filter, *subscriptionName) {
+			continue
+		}
+
+		err := r.client.EnsureEndpointSubscriptionFilterCorrect(ctx, plan.ToAsbModel(), *subscriptionName)
 		if err != nil {
 			return err
 		}

@@ -2,9 +2,6 @@ package endpoint
 
 import (
 	"context"
-
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -96,20 +93,12 @@ func (m shouldUpdateMalformedEndpointSubscriptionModifier) MarkdownDescription(_
 	return "Checks in plan if a endpoint subscription is malformed and needs to be updated."
 }
 
-func (m shouldUpdateMalformedEndpointSubscriptionModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
-	var diags diag.Diagnostics
-	if req.StateValue.IsNull() {
-		return
-	}
-
+func (m shouldUpdateMalformedEndpointSubscriptionModifier) PlanModifyBool(ctx context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
 	var state endpointResourceModel
 	req.State.Get(ctx, &state)
 
-	malformedSubscriptions := []attr.Value{}
-	for _, subscription := range state.MalformedSubscriptions {
-		malformedSubscriptions = append(malformedSubscriptions, types.StringValue(subscription))
+	hasMalformedFilters := state.HasMalformedFilters.ValueBool()
+	if hasMalformedFilters {
+		resp.PlanValue = types.BoolValue(true)
 	}
-
-	resp.PlanValue, diags  = types.ListValue(types.StringType, malformedSubscriptions)
-	resp.Diagnostics.Append(diags...)
 }
