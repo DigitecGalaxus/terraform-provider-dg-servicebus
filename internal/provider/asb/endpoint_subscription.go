@@ -2,9 +2,10 @@ package asb
 
 import (
 	"context"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"regexp"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 )
@@ -107,6 +108,28 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 		plan.EndpointName,
 		cropSubscriptionNameToMaxLength(subscriptionName),
 		nil,
+	)
+
+	return err
+}
+
+func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
+	ctx context.Context,
+	plan EndpointModel,
+	subscriptionName string,
+) error {
+	subscriptionFilter := MakeSubscriptionFilter(subscriptionName)
+
+	_, err := w.Client.UpdateRule(
+		ctx,
+		plan.TopicName,
+		plan.EndpointName,
+		az.RuleProperties{
+			Name: cropSubscriptionNameToMaxLength(subscriptionName),
+			Filter: &az.SQLFilter{
+				Expression: subscriptionFilter,
+			},
+		},
 	)
 
 	return err

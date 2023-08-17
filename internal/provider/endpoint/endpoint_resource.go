@@ -53,23 +53,6 @@ func (r *endpointResource) Metadata(_ context.Context, req resource.MetadataRequ
 	resp.TypeName = req.ProviderTypeName + "_endpoint"
 }
 
-type endpointResourceModel struct {
-	EndpointName         types.String                      `tfsdk:"endpoint_name"`
-	TopicName            types.String                      `tfsdk:"topic_name"`
-	Subscriptions        []string                          `tfsdk:"subscriptions"`
-	AdditionalQueues     []string                          `tfsdk:"additional_queues"`
-	QueueOptions         endpointResourceQueueOptionsModel `tfsdk:"queue_options"`
-	QueueExists          types.Bool                        `tfsdk:"queue_exists"`
-	EndpointExists       types.Bool                        `tfsdk:"endpoint_exists"`
-	ShouldCreateQueue    types.Bool                        `tfsdk:"should_create_queue"`
-	ShouldCreateEndpoint types.Bool                        `tfsdk:"should_create_endpoint"`
-}
-
-type endpointResourceQueueOptionsModel struct {
-	EnablePartitioning types.Bool  `tfsdk:"enable_partitioning"`
-	MaxSizeInMegabytes types.Int64 `tfsdk:"max_size_in_megabytes"`
-}
-
 func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "The Endpoint resource allows consumers to create and manage an NServiceBus Endpoint. "+
@@ -94,6 +77,19 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Required:    true,
 				ElementType: types.StringType,
 				Description: "The list of subscriptions to create on the endpoint.",
+			},
+			"malformed_subscriptions": schema.ListAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Internal attribute used to track existing subscriptions that are malformed.",
+			},
+			"subscriptions_to_update": schema.ListAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Internal attribute used track subscriptions that need to be re-created during the update step.",
+				PlanModifiers: []planmodifier.List{
+					shouldUpdateMalformedEndpointSubscriptionModifier{},
+				},
 			},
 			"additional_queues": schema.ListAttribute{
 				Optional:    true,
@@ -148,6 +144,25 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 		},
 	}
+}
+
+type endpointResourceModel struct {
+	EndpointName         types.String                      `tfsdk:"endpoint_name"`
+	TopicName            types.String                      `tfsdk:"topic_name"`
+	Subscriptions        []string                          `tfsdk:"subscriptions"`
+	AdditionalQueues     []string                          `tfsdk:"additional_queues"`
+	QueueOptions         endpointResourceQueueOptionsModel `tfsdk:"queue_options"`
+	QueueExists          types.Bool                        `tfsdk:"queue_exists"`
+	EndpointExists       types.Bool                        `tfsdk:"endpoint_exists"`
+	ShouldCreateQueue    types.Bool                        `tfsdk:"should_create_queue"`
+	ShouldCreateEndpoint types.Bool                        `tfsdk:"should_create_endpoint"`
+	SubscriptionsToUpdate []string                         `tfsdk:"subscriptions_to_update"`
+	MalformedSubscriptions []string                        `tfsdk:"malformed_subscriptions"`
+}
+
+type endpointResourceQueueOptionsModel struct {
+	EnablePartitioning types.Bool  `tfsdk:"enable_partitioning"`
+	MaxSizeInMegabytes types.Int64 `tfsdk:"max_size_in_megabytes"`
 }
 
 func (model endpointResourceModel) ToAsbModel() asb.EndpointModel {

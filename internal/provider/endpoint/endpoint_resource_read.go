@@ -3,10 +3,11 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"golang.org/x/exp/slices"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -125,20 +126,13 @@ func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, 
 		}
 
 		subscriptionFilter := azureSubscriptions[subscription].Filter
-		if subscriptionFilter == asb.MakeSubscriptionFilter(subscription) {
-			subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, subscription)
+		subscriptionFilterIsCorrect := asb.MakeSubscriptionFilter(subscription) == subscriptionFilter
+		if !subscriptionFilterIsCorrect {
+			state.MalformedSubscriptions = append(state.SubscriptionsToUpdate, subscription)
 			continue
 		}
-
-		// We delete the subscription if the filter is invalid, such that it can be recreated at next update
-		err := r.client.DeleteEndpointSubscription(ctx, loadedState, subscription)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading subscriptions",
-				"Unexpected error occurred while reading subscriptions, error: "+err.Error(),
-			)
-			return false
-		}
+		
+		subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, subscription)
 	}
 
 	state.Subscriptions = subscriptionsInAzureAndState

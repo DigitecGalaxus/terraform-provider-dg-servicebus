@@ -2,7 +2,6 @@ package endpoint
 
 import (
 	"context"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"golang.org/x/exp/slices"
@@ -18,7 +17,6 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 
 	previousState := endpointResourceModel{}
 	req.State.Get(ctx, &previousState)
-	previousStateModel := previousState.ToAsbModel()
 
 	if plan.ShouldCreateQueue.ValueBool() {
 		err := r.client.CreateEndpointQueue(ctx, planModel.EndpointName, planModel.QueueOptions)
@@ -42,7 +40,7 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		}
 	}
 
-	err := r.UpdateSubscriptions(ctx, previousStateModel, planModel)
+	err := r.UpdateSubscriptions(ctx, previousState, plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating subscriptions",
@@ -56,15 +54,15 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 
 func (r *endpointResource) UpdateSubscriptions(
 	ctx context.Context,
-	previousState asb.EndpointModel,
-	plan asb.EndpointModel,
+	previousState endpointResourceModel,
+	plan endpointResourceModel,
 ) error {
 	subscriptions := getUniqueElements(append(plan.Subscriptions, previousState.Subscriptions...))
 
 	for _, subscription := range subscriptions {
 		shouldBeDeleted := !slices.Contains(plan.Subscriptions, subscription)
 		if shouldBeDeleted {
-			err := r.client.DeleteEndpointSubscription(ctx, plan, subscription)
+			err := r.client.DeleteEndpointSubscription(ctx, plan.ToAsbModel(), subscription)
 			if err != nil {
 				return err
 			}
@@ -73,13 +71,29 @@ func (r *endpointResource) UpdateSubscriptions(
 
 		shouldBeCreated := !slices.Contains(previousState.Subscriptions, subscription)
 		if shouldBeCreated {
-			err := r.client.CreateEndpointSubscription(ctx, plan, subscription)
+			err := r.client.CreateEndpointSubscription(ctx, plan.ToAsbModel(), subscription)
 			if err != nil {
 				return err
 			}
 		}
 
 		// Exists and should stay like that
+	}
+
+	return nil
+}
+
+
+func (r *endpointResource) updateMalformedSubscriptions(
+	ctx context.Context,
+	state endpointResourceModel,
+	plan endpointResourceModel,
+) error {
+	for _, subscription := range plan.SubscriptionsToUpdate {
+		err := r.client.EnsureEndpointSubscriptionFilterCorrect(ctx, plan.ToAsbModel(), subscription)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
