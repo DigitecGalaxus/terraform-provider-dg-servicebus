@@ -19,7 +19,7 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 	model EndpointModel,
 ) (map[string]Subscription, error) {
 	subscriptions := map[string]Subscription{}
-	subscriptionFilterRegex := regexp.MustCompile("\\[NServiceBus.EnclosedMessageTypes\\] LIKE '%(.*)%'")
+	subscriptionFilterRegex := regexp.MustCompile(`\[NServiceBus.EnclosedMessageTypes\] LIKE '%(.*)%'`)
 
 	pager := w.Client.NewListRulesPager(
 		model.TopicName,
