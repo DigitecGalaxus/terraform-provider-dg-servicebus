@@ -2,12 +2,15 @@ package asb
 
 import (
 	"context"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"regexp"
+	"strings"
 
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 )
 
 type Subscription struct {
-	Name string
+	Name   string
 	Filter string
 }
 
@@ -16,6 +19,7 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 	model EndpointModel,
 ) (map[string]Subscription, error) {
 	subscriptions := map[string]Subscription{}
+	subscriptionFilterRegex := regexp.MustCompile(`\[NServiceBus.EnclosedMessageTypes\] LIKE '%(.*)%'`)
 
 	pager := w.Client.NewListRulesPager(
 		model.TopicName,
@@ -38,12 +42,18 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 				continue
 			}
 
+			matches := subscriptionFilterRegex.FindStringSubmatch(sqlFilter.Expression)
+			if len(matches) == 0 {
+				continue
+			}
+
+			subscriptionName := matches[1]
 			subscription := Subscription{
-				Name: rule.Name,
+				Name:   subscriptionName,
 				Filter: sqlFilter.Expression,
 			}
-			
-			subscriptions[rule.Name] = subscription
+
+			subscriptions[subscriptionName] = subscription
 		}
 	}
 
@@ -60,7 +70,7 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 		plan.TopicName,
 		plan.EndpointName,
 		&az.CreateRuleOptions{
-			Name: &subscriptionName,
+			Name: to.Ptr(cropSubscriptionNameToMaxLength(subscriptionName)),
 			Filter: &az.SQLFilter{
 				Expression: MakeSubscriptionFilter(subscriptionName),
 			},
@@ -68,10 +78,6 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 	)
 
 	return err
-}
-
-func MakeSubscriptionFilter(subscriptionName string) string {
-	return "[NServiceBus.EnclosedMessageTypes] LIKE '%" + subscriptionName + "%'"
 }
 
 func (w *AsbClientWrapper) EndpointSubscriptionExists(
@@ -83,7 +89,7 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 		azureContext,
 		plan.TopicName,
 		plan.EndpointName,
-		subscriptionName,
+		cropSubscriptionNameToMaxLength(subscriptionName),
 		nil,
 	)
 
@@ -99,9 +105,22 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 		azureContext,
 		plan.TopicName,
 		plan.EndpointName,
-		subscriptionName,
+		cropSubscriptionNameToMaxLength(subscriptionName),
 		nil,
 	)
 
 	return err
+}
+
+func cropSubscriptionNameToMaxLength(subscriptionName string) string {
+	subscriptionName = strings.Trim(subscriptionName, " ")
+	if len(subscriptionName) < 50 {
+		return subscriptionName
+	}
+
+	return subscriptionName[len(subscriptionName)-50:]
+}
+
+func MakeSubscriptionFilter(subscriptionName string) string {
+	return "[NServiceBus.EnclosedMessageTypes] LIKE '%" + subscriptionName + "%'"
 }
