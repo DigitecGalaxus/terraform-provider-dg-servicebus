@@ -3,11 +3,10 @@ package endpoint
 import (
 	"context"
 	"fmt"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
-
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"golang.org/x/exp/slices"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -85,7 +84,7 @@ func (r *endpointResource) updateEndpointQueueState(ctx context.Context, model a
 		state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
 		state.QueueOptions.EnablePartitioning = types.BoolValue(partitioningIsEnabled)
 	}
-	
+
 	return true
 }
 
