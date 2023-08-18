@@ -35,7 +35,7 @@ resource "dgservicebus_endpoint" "example" {
 
 - `endpoint_name` (String) The name of the endpoint to create.
 - `queue_options` (Attributes) The options for the queue, which is created for the endpoint. (see [below for nested schema](#nestedatt--queue_options))
-- `subscriptions` (List of String) The list of subscriptions to create on the endpoint.
+- `subscriptions` (Set of String) The list of subscriptions to create on the endpoint.
 - `topic_name` (String) The name of the topic to create the endpoint on.
 
 ### Optional
@@ -45,9 +45,11 @@ resource "dgservicebus_endpoint" "example" {
 ### Read-Only
 
 - `endpoint_exists` (Boolean) Internal attribute used to track whether the endpoint exists.
+- `has_malformed_filters` (Boolean) Internal attribute used to track whether the endpoint has malformed filters.
 - `queue_exists` (Boolean) Internal attribute used to track whether the queue exists.
 - `should_create_endpoint` (Boolean) Internal attribute used to track whether the endpoint should be created.
 - `should_create_queue` (Boolean) Internal attribute used to track whether the queue should be created.
+- `should_update_subscriptions` (Boolean) Internal attribute used to track whether the subscriptions should be updated.
 
 <a id="nestedatt--queue_options"></a>
 ### Nested Schema for `queue_options`

@@ -42,7 +42,7 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 		// There are no subscriptions to check if the endpoint does not exist
 		if state.EndpointExists.ValueBool() {
-			success = r.updateEndpointSubscriptionState(ctx, model, &state, resp)
+			success = r.updateEndpointSubscriptionState(ctx, model, &state)
 			if !success {
 				return
 			}
@@ -107,7 +107,7 @@ func (r *endpointResource) updateEndpointState(ctx context.Context, model asb.En
 	return true
 }
 
-func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel) bool {
 	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, loadedState)
 	if err != nil {
 		return false
