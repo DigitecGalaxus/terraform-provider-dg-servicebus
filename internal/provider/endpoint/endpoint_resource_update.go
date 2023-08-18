@@ -2,12 +2,10 @@ package endpoint
 
 import (
 	"context"
-	"strings"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
-	"time"
-
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"golang.org/x/exp/slices"
+	"strings"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -17,8 +15,6 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 	planModel := plan.ToAsbModel()
-
-	time.Sleep(5 * time.Second)
 
 	previousState := endpointResourceModel{}
 	req.State.Get(ctx, &previousState)
@@ -128,6 +124,7 @@ func (r *endpointResource) updateMalformedSubscriptions(
 			}
 			continue
 		}
+
 		if asb.IsFilterCorrect(subscription.Filter, *subscriptionName) {
 			continue
 		}

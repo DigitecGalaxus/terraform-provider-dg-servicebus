@@ -3,12 +3,11 @@ package endpoint
 import (
 	"context"
 	"fmt"
-	"strings"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
-
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"golang.org/x/exp/slices"
+	"strings"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -114,35 +113,43 @@ func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, 
 		return false
 	}
 
-	subscriptionsInAzureAndState := []string{}
-	azureSubscriptionNames := make([]string, 0, len(azureSubscriptions))
-	for k := range azureSubscriptions {
-		azureSubscriptionNames = append(azureSubscriptionNames, k)
+	// Azure subscription names are cut to a length of 50 characters
+	getFullSubscriptionNameBySuffixInState := func(subscriptionSuffix string) *string {
+		for _, subscription := range loadedState.Subscriptions {
+			if strings.HasSuffix(subscription, subscriptionSuffix) {
+				return &subscription
+			}
+		}
+		return nil
 	}
 
-	for _, stateSubscription := range loadedState.Subscriptions {
-		for _, azureSubscription := range azureSubscriptionNames {
-			existsInState := slices.ContainsFunc(loadedState.Subscriptions, func(s string) bool {
-				return strings.HasSuffix(s, azureSubscription)
-			})
-			existsInAzure := slices.ContainsFunc(azureSubscriptionNames, func(s string) bool {
-				return strings.HasSuffix(stateSubscription, s)
-			})
-			if (!existsInState && !existsInAzure) || (existsInState && !existsInAzure) {
-				continue
-			}
+	updatedSubscriptionState := []string{}
+	for _, azureSubscription := range azureSubscriptions {
+		subscriptionName := getFullSubscriptionNameBySuffixInState(azureSubscription.Name)
+		if subscriptionName == nil {
+			// Add to the state, which will delete the resource on apply
+			updatedSubscriptionState = append(updatedSubscriptionState, azureSubscription.Name)
+			continue
+		}
 
-			subscriptionFilter := azureSubscriptions[azureSubscription].Filter
-			if !asb.IsFilterCorrect(subscriptionFilter, stateSubscription) {
-				state.HasMalformedFilters = types.BoolValue(true)
-				continue
-			}
+		if !asb.IsFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+			state.HasMalformedFilters = types.BoolValue(true)
+		}
 
-			subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, stateSubscription)
+		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
+	}
+
+	for _, subscription := range loadedState.Subscriptions {
+		if subscription == "___IMPORT_ONLY___" {
+			continue
+		}
+
+		if !slices.Contains(updatedSubscriptionState, subscription) {
+			updatedSubscriptionState = append(updatedSubscriptionState, subscription)
 		}
 	}
 
-	state.Subscriptions = subscriptionsInAzureAndState
+	state.Subscriptions = updatedSubscriptionState
 	return true
 }
 

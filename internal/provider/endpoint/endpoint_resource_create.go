@@ -56,8 +56,8 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 	plan.EndpointExists = types.BoolValue(true)
 	plan.ShouldCreateQueue = types.BoolValue(false)
 	plan.ShouldCreateEndpoint = types.BoolValue(false)
-	plan.ShouldUpdateSubscriptions = types.BoolValue(false)
 	plan.HasMalformedFilters = types.BoolValue(false)
+	plan.ShouldUpdateSubscriptions = types.BoolValue(false)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {

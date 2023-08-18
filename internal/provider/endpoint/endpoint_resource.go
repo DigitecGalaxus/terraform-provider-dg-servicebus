@@ -73,14 +73,10 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"subscriptions": schema.ListAttribute{
+			"subscriptions": schema.SetAttribute{
 				Required:    true,
 				ElementType: types.StringType,
 				Description: "The list of subscriptions to create on the endpoint.",
-			},
-			"has_malformed_filters": schema.BoolAttribute{
-				Computed:    true,
-				Description: "Internal attribute used to track whether the endpoint has malformed filters.",
 			},
 			"additional_queues": schema.ListAttribute{
 				Optional:    true,
@@ -116,6 +112,13 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"has_malformed_filters": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Internal attribute used to track whether the endpoint has malformed filters.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"should_create_queue": schema.BoolAttribute{
 				Computed:    true,
 				Description: "Internal attribute used to track whether the queue should be created.",
@@ -138,6 +141,7 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Description: "Internal attribute used to track whether the subscriptions should be updated.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldUpdateMalformedEndpointSubscriptionModifier{},
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
