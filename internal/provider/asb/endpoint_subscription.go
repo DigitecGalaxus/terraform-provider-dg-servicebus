@@ -2,9 +2,9 @@ package asb
 
 import (
 	"context"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"regexp"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 )
@@ -19,7 +19,6 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 	model EndpointModel,
 ) (map[string]Subscription, error) {
 	subscriptions := map[string]Subscription{}
-	subscriptionFilterRegex := regexp.MustCompile(`\[NServiceBus.EnclosedMessageTypes\] LIKE '%(.*)%'`)
 
 	pager := w.Client.NewListRulesPager(
 		model.TopicName,
@@ -42,18 +41,12 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 				continue
 			}
 
-			matches := subscriptionFilterRegex.FindStringSubmatch(sqlFilter.Expression)
-			if len(matches) == 0 {
-				continue
-			}
-
-			subscriptionName := matches[1]
 			subscription := Subscription{
-				Name:   subscriptionName,
+				Name:   rule.Name,
 				Filter: sqlFilter.Expression,
 			}
 
-			subscriptions[subscriptionName] = subscription
+			subscriptions[rule.Name] = subscription
 		}
 	}
 
@@ -70,9 +63,9 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 		plan.TopicName,
 		plan.EndpointName,
 		&az.CreateRuleOptions{
-			Name: to.Ptr(cropSubscriptionNameToMaxLength(subscriptionName)),
+			Name: to.Ptr(CropSubscriptionNameToMaxLength(subscriptionName)),
 			Filter: &az.SQLFilter{
-				Expression: MakeSubscriptionFilter(subscriptionName),
+				Expression: makeSubscriptionFilter(subscriptionName),
 			},
 		},
 	)
@@ -89,7 +82,7 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 		azureContext,
 		plan.TopicName,
 		plan.EndpointName,
-		cropSubscriptionNameToMaxLength(subscriptionName),
+		CropSubscriptionNameToMaxLength(subscriptionName),
 		nil,
 	)
 
@@ -105,14 +98,40 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 		azureContext,
 		plan.TopicName,
 		plan.EndpointName,
-		cropSubscriptionNameToMaxLength(subscriptionName),
+		CropSubscriptionNameToMaxLength(subscriptionName),
 		nil,
 	)
 
 	return err
 }
 
-func cropSubscriptionNameToMaxLength(subscriptionName string) string {
+func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
+	ctx context.Context,
+	plan EndpointModel,
+	subscriptionName string,
+) error {
+	subscriptionFilter := makeSubscriptionFilter(subscriptionName)
+
+	_, err := w.Client.UpdateRule(
+		ctx,
+		plan.TopicName,
+		plan.EndpointName,
+		az.RuleProperties{
+			Name: CropSubscriptionNameToMaxLength(subscriptionName),
+			Filter: &az.SQLFilter{
+				Expression: subscriptionFilter,
+			},
+		},
+	)
+
+	return err
+}
+
+func IsFilterCorrect(filter string, subscriptionName string) bool {
+	return filter == makeSubscriptionFilter(subscriptionName)
+}
+
+func CropSubscriptionNameToMaxLength(subscriptionName string) string {
 	subscriptionName = strings.Trim(subscriptionName, " ")
 	if len(subscriptionName) < 50 {
 		return subscriptionName
@@ -121,6 +140,6 @@ func cropSubscriptionNameToMaxLength(subscriptionName string) string {
 	return subscriptionName[len(subscriptionName)-50:]
 }
 
-func MakeSubscriptionFilter(subscriptionName string) string {
+func makeSubscriptionFilter(subscriptionName string) string {
 	return "[NServiceBus.EnclosedMessageTypes] LIKE '%" + subscriptionName + "%'"
 }

@@ -22,30 +22,8 @@ func (r *endpointResource) ImportState(ctx context.Context, req resource.ImportS
 
 	model := asb.EndpointModel{TopicName: idParts[0], EndpointName: idParts[1]}
 
-	endpointExists, err := r.client.EndpointExists(ctx, model)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading Endpoint",
-			"Could not read if an Endpoint exists, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
 	subscriptionNames := []string{}
-
-	if endpointExists {
-		subscriptions, err := r.client.GetEndpointSubscriptions(ctx, model)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error importing subscribers",
-				"There was an error when trying to import subscribers: "+err.Error(),
-			)
-		}
-
-		for k := range subscriptions {
-			subscriptionNames = append(subscriptionNames, k)
-		}
-	}
+	subscriptionNames = append(subscriptionNames, "___IMPORT_ONLY___")
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("topic_name"), model.TopicName)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("endpoint_name"), model.EndpointName)...)

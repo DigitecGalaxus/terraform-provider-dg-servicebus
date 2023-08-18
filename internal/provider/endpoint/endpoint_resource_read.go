@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"golang.org/x/exp/slices"
+	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
@@ -21,6 +22,8 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 	state.EndpointExists = types.BoolValue(true)
 	state.ShouldCreateQueue = types.BoolValue(false)
 	state.ShouldCreateEndpoint = types.BoolValue(false)
+	state.ShouldUpdateSubscriptions = types.BoolValue(false)
+	state.HasMalformedFilters = types.BoolValue(false)
 
 	var success bool
 
@@ -39,7 +42,7 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 		// There are no subscriptions to check if the endpoint does not exist
 		if state.EndpointExists.ValueBool() {
-			success = r.updateEndpointSubscriptionState(ctx, model, &state, resp)
+			success = r.updateEndpointSubscriptionState(ctx, model, &state)
 			if !success {
 				return
 			}
@@ -104,44 +107,49 @@ func (r *endpointResource) updateEndpointState(ctx context.Context, model asb.En
 	return true
 }
 
-func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel) bool {
 	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, loadedState)
 	if err != nil {
 		return false
 	}
 
-	subscriptionsInAzureAndState := []string{}
-	azureSubscriptionNames := make([]string, 0, len(azureSubscriptions))
-	for k := range azureSubscriptions {
-		azureSubscriptionNames = append(azureSubscriptionNames, k)
+	// Azure subscription names are cut to a length of 50 characters
+	getFullSubscriptionNameBySuffixInState := func(subscriptionSuffix string) *string {
+		for _, subscription := range loadedState.Subscriptions {
+			if strings.HasSuffix(subscription, subscriptionSuffix) {
+				return &subscription
+			}
+		}
+		return nil
 	}
-	combinedSubscriptions := getUniqueElements(append(loadedState.Subscriptions, azureSubscriptionNames...))
 
-	for _, subscription := range combinedSubscriptions {
-		existsInState := slices.Contains(loadedState.Subscriptions, subscription)
-		existsInAzure := slices.Contains(azureSubscriptionNames, subscription)
-		if (!existsInState && !existsInAzure) || (existsInState && !existsInAzure) {
+	updatedSubscriptionState := []string{}
+	for _, azureSubscription := range azureSubscriptions {
+		subscriptionName := getFullSubscriptionNameBySuffixInState(azureSubscription.Name)
+		if subscriptionName == nil {
+			// Add to the state, which will delete the resource on apply
+			updatedSubscriptionState = append(updatedSubscriptionState, azureSubscription.Name)
 			continue
 		}
 
-		subscriptionFilter := azureSubscriptions[subscription].Filter
-		if subscriptionFilter == asb.MakeSubscriptionFilter(subscription) {
-			subscriptionsInAzureAndState = append(subscriptionsInAzureAndState, subscription)
+		if !asb.IsFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+			state.HasMalformedFilters = types.BoolValue(true)
+		}
+
+		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
+	}
+
+	for _, subscription := range loadedState.Subscriptions {
+		if subscription == "___IMPORT_ONLY___" {
 			continue
 		}
 
-		// We delete the subscription if the filter is invalid, such that it can be recreated at next update
-		err := r.client.DeleteEndpointSubscription(ctx, loadedState, subscription)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error reading subscriptions",
-				"Unexpected error occurred while reading subscriptions, error: "+err.Error(),
-			)
-			return false
+		if !slices.Contains(updatedSubscriptionState, subscription) {
+			updatedSubscriptionState = append(updatedSubscriptionState, subscription)
 		}
 	}
 
-	state.Subscriptions = subscriptionsInAzureAndState
+	state.Subscriptions = updatedSubscriptionState
 	return true
 }
 

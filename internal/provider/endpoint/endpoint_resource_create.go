@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"net/http"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -57,6 +56,8 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 	plan.EndpointExists = types.BoolValue(true)
 	plan.ShouldCreateQueue = types.BoolValue(false)
 	plan.ShouldCreateEndpoint = types.BoolValue(false)
+	plan.HasMalformedFilters = types.BoolValue(false)
+	plan.ShouldUpdateSubscriptions = types.BoolValue(false)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
