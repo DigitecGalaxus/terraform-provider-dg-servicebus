@@ -201,7 +201,8 @@ func getRuleNameWithUniqueIdentifier(subscriptionName string) string {
 
 func getUniqueSubscriptionIdentifier(subscriptionName string) string {
 	hash := sha1.New()
-	io.WriteString(hash, subscriptionName)
+	io.WriteString(hash, subscriptionName) // nolint: errcheck
+
 	identifierHash := hash.Sum(nil)
 
 	// Half the length of the hash should be enough to make it unique
