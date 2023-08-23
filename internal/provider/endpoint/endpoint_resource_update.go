@@ -2,7 +2,6 @@ package endpoint
 
 import (
 	"context"
-	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -74,29 +73,33 @@ func (r *endpointResource) UpdateSubscriptions(
 	previousState endpointResourceModel,
 	plan endpointResourceModel,
 ) error {
-	subscriptions := getUniqueElements(append(plan.Subscriptions, previousState.Subscriptions...))
-
 	planModel := plan.ToAsbModel()
-	for _, subscription := range subscriptions {
-		shouldBeDeleted := !slices.Contains(plan.Subscriptions, subscription)
-		if shouldBeDeleted {
-			err := r.client.DeleteEndpointSubscription(ctx, planModel, subscription)
-			if err != nil {
-				return err
-			}
 
-			continue
-		}
-
-		shouldBeCreated := !slices.Contains(previousState.Subscriptions, subscription)
+	// This is deliberately done in this order, such that if subscriptions are replaced,
+	// the new subscriptions are created before the old ones are deleted, thus avoiding
+	// the Endpoint missing events for a short period of time.
+	for _, planSubscription := range plan.Subscriptions {
+		shouldBeCreated := !slices.Contains(previousState.Subscriptions, planSubscription)
 		if !shouldBeCreated {
 			// Exists and should stay like that
 			continue
 		}
 
-		err := r.client.CreateEndpointSubscription(ctx, planModel, subscription)
+		err := r.client.CreateEndpointSubscription(ctx, planModel, planSubscription)
 		if err != nil {
 			return err
+		}
+	}
+
+	for _, previousSubscriptions := range previousState.Subscriptions {
+		shouldBeDeleted := !slices.Contains(plan.Subscriptions, previousSubscriptions)
+		if shouldBeDeleted {
+			err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscriptions)
+			if err != nil {
+				return err
+			}
+
+			continue
 		}
 	}
 
@@ -113,18 +116,8 @@ func (r *endpointResource) updateMalformedSubscriptions(
 		return err
 	}
 
-	getFullSubscriptionNameBySuffixInState := func(subscriptionSuffix string) *string {
-		for _, subscription := range state.Subscriptions {
-			if strings.HasSuffix(subscription, subscriptionSuffix) {
-				return &subscription
-			}
-		}
-
-		return nil
-	}
-
 	for _, subscription := range azureSubscription {
-		subscriptionName := getFullSubscriptionNameBySuffixInState(subscription.Name)
+		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(state.Subscriptions, subscription.Name)
 		if subscriptionName == nil {
 			// Subscription is not managed by Terraform - delete it
 			err := r.client.DeleteEndpointSubscription(ctx, plan.ToAsbModel(), subscription.Name)
@@ -135,7 +128,7 @@ func (r *endpointResource) updateMalformedSubscriptions(
 			continue
 		}
 
-		if asb.IsFilterCorrect(subscription.Filter, *subscriptionName) {
+		if asb.IsSubscriptionFilterCorrect(subscription.Filter, *subscriptionName) {
 			continue
 		}
 

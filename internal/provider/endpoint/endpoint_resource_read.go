@@ -3,11 +3,11 @@ package endpoint
 import (
 	"context"
 	"fmt"
-	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/slices"
 )
 
@@ -34,20 +34,16 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	hasSubscribers := len(model.Subscriptions) > 0
+	endpointExists, success := r.updateEndpointState(ctx, model, &state, resp)
+	if !success {
+		return
+	}
 
-	if hasSubscribers {
-		endpointExists, success := r.updateEndpointState(ctx, model, &state, resp)
+	// There are no subscriptions to check if the endpoint does not exist
+	if endpointExists {
+		success = r.updateEndpointSubscriptionState(ctx, model, &state)
 		if !success {
 			return
-		}
-
-		// There are no subscriptions to check if the endpoint does not exist
-		if endpointExists {
-			success = r.updateEndpointSubscriptionState(ctx, model, &state)
-			if !success {
-				return
-			}
 		}
 	}
 
@@ -113,17 +109,6 @@ func (r *endpointResource) updateEndpointSubscriptionState(
 	loadedState asb.EndpointModel,
 	currentState *endpointResourceModel,
 ) bool {
-	// Azure subscription names are cut to a length of 50 characters
-	getFullSubscriptionNameBySuffixInState := func(subscriptionSuffix string) *string {
-		for _, subscription := range loadedState.Subscriptions {
-			if strings.HasSuffix(subscription, subscriptionSuffix) {
-				return &subscription
-			}
-		}
-
-		return nil
-	}
-
 	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, loadedState)
 	if err != nil {
 		return false
@@ -131,17 +116,20 @@ func (r *endpointResource) updateEndpointSubscriptionState(
 
 	updatedSubscriptionState := []string{}
 	for _, azureSubscription := range azureSubscriptions {
-		subscriptionName := getFullSubscriptionNameBySuffixInState(azureSubscription.Name)
+		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(loadedState.Subscriptions, azureSubscription.Name)
 		if subscriptionName == nil {
+			tflog.Warn(ctx, fmt.Sprintf("Subscription %s not found in state", azureSubscription.Name))
 			// Add to the state, which will delete the resource on apply
 			updatedSubscriptionState = append(updatedSubscriptionState, azureSubscription.Name)
 			continue
 		}
 
-		if !asb.IsFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+		if !asb.IsSubscriptionFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+			tflog.Warn(ctx, fmt.Sprintf("Subscription %s has bad filter", azureSubscription.Name))
 			currentState.HasMalformedFilters = types.BoolValue(true)
 		}
 
+		tflog.Warn(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionName))
 		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
 	}
 
