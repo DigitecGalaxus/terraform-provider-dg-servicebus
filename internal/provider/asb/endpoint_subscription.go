@@ -17,8 +17,8 @@ type Subscription struct {
 func (w *AsbClientWrapper) GetEndpointSubscriptions(
 	ctx context.Context,
 	model EndpointModel,
-) (map[string]Subscription, error) {
-	subscriptions := map[string]Subscription{}
+) ([]Subscription, error) {
+	subscriptions := []Subscription{}
 
 	pager := w.Client.NewListRulesPager(
 		model.TopicName,
@@ -46,7 +46,7 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 				Filter: sqlFilter.Expression,
 			}
 
-			subscriptions[rule.Name] = subscription
+			subscriptions = append(subscriptions, subscription)
 		}
 	}
 
@@ -78,7 +78,7 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 	plan EndpointModel,
 	subscriptionName string,
 ) bool {
-	_, err := w.Client.GetRule(
+	rule, err := w.Client.GetRule(
 		azureContext,
 		plan.TopicName,
 		plan.EndpointName,
@@ -86,7 +86,7 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 		nil,
 	)
 
-	return err == nil
+	return err != nil && rule != nil
 }
 
 func (w *AsbClientWrapper) DeleteEndpointSubscription(

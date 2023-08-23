@@ -2,10 +2,11 @@ package endpoint
 
 import (
 	"context"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"golang.org/x/exp/slices"
 	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"golang.org/x/exp/slices"
 )
 
 func (r *endpointResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -41,7 +42,11 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		}
 	}
 
-	err := r.UpdateSubscriptions(ctx, previousState, plan)
+	err := r.UpdateSubscriptions(
+		ctx,
+		previousState,
+		plan,
+	)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating subscriptions",
@@ -71,25 +76,28 @@ func (r *endpointResource) UpdateSubscriptions(
 ) error {
 	subscriptions := getUniqueElements(append(plan.Subscriptions, previousState.Subscriptions...))
 
+	planModel := plan.ToAsbModel()
 	for _, subscription := range subscriptions {
 		shouldBeDeleted := !slices.Contains(plan.Subscriptions, subscription)
 		if shouldBeDeleted {
-			err := r.client.DeleteEndpointSubscription(ctx, plan.ToAsbModel(), subscription)
+			err := r.client.DeleteEndpointSubscription(ctx, planModel, subscription)
 			if err != nil {
 				return err
 			}
+
 			continue
 		}
 
 		shouldBeCreated := !slices.Contains(previousState.Subscriptions, subscription)
-		if shouldBeCreated {
-			err := r.client.CreateEndpointSubscription(ctx, plan.ToAsbModel(), subscription)
-			if err != nil {
-				return err
-			}
+		if !shouldBeCreated {
+			// Exists and should stay like that
+			continue
 		}
 
-		// Exists and should stay like that
+		err := r.client.CreateEndpointSubscription(ctx, planModel, subscription)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -118,10 +126,12 @@ func (r *endpointResource) updateMalformedSubscriptions(
 	for _, subscription := range azureSubscription {
 		subscriptionName := getFullSubscriptionNameBySuffixInState(subscription.Name)
 		if subscriptionName == nil {
+			// Subscription is not managed by Terraform - delete it
 			err := r.client.DeleteEndpointSubscription(ctx, plan.ToAsbModel(), subscription.Name)
 			if err != nil {
 				return err
 			}
+
 			continue
 		}
 

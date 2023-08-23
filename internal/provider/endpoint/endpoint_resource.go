@@ -132,7 +132,6 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Description: "Internal attribute used to track whether the endpoint should be created.",
 				PlanModifiers: []planmodifier.Bool{
 					shouldCreateEndpointIfNotExistsModifier{},
-					shouldCreateEndpointIfSubscriberAddedModifier{},
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
