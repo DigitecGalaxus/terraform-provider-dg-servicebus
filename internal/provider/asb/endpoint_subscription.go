@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 )
@@ -117,11 +118,15 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 	model EndpointModel,
 	subscriptionName string,
 ) error {
+	ruleName := w.encodeSubscriptionRuleName(ctx, model, subscriptionName)
+
+	tflog.Info(ctx, "Deleting subscription rule "+ruleName)
+
 	_, err := w.Client.DeleteRule(
 		ctx,
 		model.TopicName,
 		model.EndpointName,
-		w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
+		ruleName,
 		nil,
 	)
 
@@ -164,7 +169,11 @@ func TryGetFullSubscriptionNameFromRuleName(knownSubscriptionNames []string, rul
 	return nil
 }
 
-func (w *AsbClientWrapper) encodeSubscriptionRuleName(ctx context.Context, model EndpointModel, subscriptionName string) string {
+func (w *AsbClientWrapper) encodeSubscriptionRuleName(
+	ctx context.Context,
+	model EndpointModel,
+	subscriptionName string,
+) string {
 	if len(subscriptionName) < MAX_RULE_NAME_LENGTH {
 		return subscriptionName
 	}

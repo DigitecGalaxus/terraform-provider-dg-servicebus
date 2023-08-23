@@ -2,9 +2,12 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/slices"
 )
 
@@ -75,16 +78,21 @@ func (r *endpointResource) UpdateSubscriptions(
 ) error {
 	planModel := plan.ToAsbModel()
 
+	tflog.Info(ctx, fmt.Sprintf("Previous state: %s", strings.Join(previousState.Subscriptions, ", ")))
+	tflog.Info(ctx, fmt.Sprintf("Plan: %s", strings.Join(plan.Subscriptions, ", ")))
+
 	// This is deliberately done in this order, such that if subscriptions are replaced,
 	// the new subscriptions are created before the old ones are deleted, thus avoiding
 	// the Endpoint missing events for a short period of time.
 	for _, planSubscription := range plan.Subscriptions {
+		tflog.Info(ctx, fmt.Sprintf("Checking subscription create %s", planSubscription))
 		shouldBeCreated := !slices.Contains(previousState.Subscriptions, planSubscription)
 		if !shouldBeCreated {
 			// Exists and should stay like that
 			continue
 		}
 
+		tflog.Info(ctx, fmt.Sprintf("Creating subscription %s", planSubscription))
 		err := r.client.CreateEndpointSubscription(ctx, planModel, planSubscription)
 		if err != nil {
 			return err
@@ -92,14 +100,16 @@ func (r *endpointResource) UpdateSubscriptions(
 	}
 
 	for _, previousSubscriptions := range previousState.Subscriptions {
+		tflog.Info(ctx, fmt.Sprintf("Checking subscription delete %s", previousSubscriptions))
 		shouldBeDeleted := !slices.Contains(plan.Subscriptions, previousSubscriptions)
-		if shouldBeDeleted {
-			err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscriptions)
-			if err != nil {
-				return err
-			}
-
+		if !shouldBeDeleted {
 			continue
+		}
+
+		tflog.Info(ctx, fmt.Sprintf("Deleting subscription %s", previousSubscriptions))
+		err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscriptions)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -119,12 +129,9 @@ func (r *endpointResource) updateMalformedSubscriptions(
 	for _, subscription := range azureSubscription {
 		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(state.Subscriptions, subscription.Name)
 		if subscriptionName == nil {
-			// Subscription is not managed by Terraform - delete it
-			err := r.client.DeleteEndpointSubscription(ctx, plan.ToAsbModel(), subscription.Name)
-			if err != nil {
-				return err
-			}
-
+			// Subscription is not (yet) managed by Terraform
+			// This likely happens when the subscription was created in this update run,
+			// and the previous state does not contain it yet.
 			continue
 		}
 
