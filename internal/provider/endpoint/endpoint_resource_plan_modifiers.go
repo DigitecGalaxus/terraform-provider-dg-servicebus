@@ -2,38 +2,10 @@ package endpoint
 
 import (
 	"context"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-type shouldCreateEndpointIfSubscriberAddedModifier struct{}
-
-func (m shouldCreateEndpointIfSubscriberAddedModifier) Description(_ context.Context) string {
-	return "Checks in plan if an Endpoint should be created."
-}
-
-func (m shouldCreateEndpointIfSubscriberAddedModifier) MarkdownDescription(_ context.Context) string {
-	return "Checks in plan if an Endpoint should be created."
-}
-
-func (m shouldCreateEndpointIfSubscriberAddedModifier) PlanModifyBool(ctx context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
-	if req.StateValue.IsNull() {
-		return
-	}
-
-	var state endpointResourceModel
-	req.State.Get(ctx, &state)
-
-	var plan endpointResourceModel
-	req.Plan.Get(ctx, &plan)
-
-	previousSubscriberLen := len(state.Subscriptions)
-	afterSubscriberLen := len(plan.Subscriptions)
-
-	if previousSubscriberLen == 0 && afterSubscriberLen > 0 {
-		resp.PlanValue = types.BoolValue(true)
-	}
-}
 
 type shouldCreateQueueIfNotExistsModifier struct{}
 
@@ -78,7 +50,9 @@ func (m shouldCreateEndpointIfNotExistsModifier) PlanModifyBool(ctx context.Cont
 	req.State.Get(ctx, &state)
 
 	endpointExists := state.EndpointExists.ValueBool()
-	if !endpointExists {
+	hasSubscriptions := len(state.Subscriptions) > 0
+	// We don't want to create an endpoint if there are no subscriptions
+	if !endpointExists && hasSubscriptions {
 		resp.PlanValue = types.BoolValue(true)
 	}
 }

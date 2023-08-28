@@ -129,8 +129,8 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	subscriptionNames := make([]string, 0, len(subscriptions))
-	for subscription := range subscriptions {
-		subscriptionNames = append(subscriptionNames, subscription)
+	for _, subscription := range subscriptions {
+		subscriptionNames = append(subscriptionNames, subscription.Name)
 	}
 
 	state.Subscriptions = subscriptionNames

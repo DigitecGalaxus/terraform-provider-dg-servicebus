@@ -3,11 +3,12 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/slices"
-	"strings"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -16,6 +17,7 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	model := state.ToAsbModel()
 
 	state.QueueExists = types.BoolValue(true)
@@ -32,20 +34,16 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	hasSubscribers := len(model.Subscriptions) > 0
+	endpointExists, success := r.updateEndpointState(ctx, model, &state, resp)
+	if !success {
+		return
+	}
 
-	if hasSubscribers {
-		success = r.updateEndpointState(ctx, model, &state, resp)
+	// There are no subscriptions to check if the endpoint does not exist
+	if endpointExists {
+		success = r.updateEndpointSubscriptionState(ctx, model, &state)
 		if !success {
 			return
-		}
-
-		// There are no subscriptions to check if the endpoint does not exist
-		if state.EndpointExists.ValueBool() {
-			success = r.updateEndpointSubscriptionState(ctx, model, &state)
-			if !success {
-				return
-			}
 		}
 	}
 
@@ -54,7 +52,6 @@ func (r *endpointResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	// Set refreshed state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -73,83 +70,70 @@ func (r *endpointResource) updateEndpointQueueState(ctx context.Context, model a
 
 	if queue == nil {
 		state.QueueExists = types.BoolValue(false)
-		resp.Diagnostics.AddWarning(
-			fmt.Sprintf("Endpoint Queue %s is missing", state.EndpointName.ValueString()),
-			fmt.Sprintf("Endpoint Queue %s does not exists on Azure, whole resource will be recreated at apply", state.EndpointName.ValueString()),
-		)
-	} else {
-		maxQueueSizeInMb := *queue.QueueProperties.MaxSizeInMegabytes
-		partitioningIsEnabled := *queue.QueueProperties.EnablePartitioning
-		if partitioningIsEnabled {
-			maxQueueSizeInMb = maxQueueSizeInMb / 16
-		}
-
-		state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
-		state.QueueOptions.EnablePartitioning = types.BoolValue(partitioningIsEnabled)
+		return true
 	}
+
+	maxQueueSizeInMb := *queue.QueueProperties.MaxSizeInMegabytes
+	partitioningIsEnabled := *queue.QueueProperties.EnablePartitioning
+	if partitioningIsEnabled {
+		maxQueueSizeInMb = maxQueueSizeInMb / 16
+	}
+
+	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
+	state.QueueOptions.EnablePartitioning = types.BoolValue(partitioningIsEnabled)
 
 	return true
 }
 
-func (r *endpointResource) updateEndpointState(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) bool {
+func (r *endpointResource) updateEndpointState(ctx context.Context, model asb.EndpointModel, state *endpointResourceModel, resp *resource.ReadResponse) ( /* Endpoint Exists */ bool /* Success */, bool) {
 	endpointExists, err := r.client.EndpointExists(ctx, model)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading Endpoint",
 			"Could not read if an Endpoint exists, unexpected error: "+err.Error(),
 		)
-		return false
+
+		return false, false
 	}
+
 	if !endpointExists {
 		state.EndpointExists = types.BoolValue(false)
 		state.Subscriptions = []string{}
 	}
-	return true
+
+	return endpointExists, true
 }
 
-func (r *endpointResource) updateEndpointSubscriptionState(ctx context.Context, loadedState asb.EndpointModel, state *endpointResourceModel) bool {
+func (r *endpointResource) updateEndpointSubscriptionState(
+	ctx context.Context,
+	loadedState asb.EndpointModel,
+	currentState *endpointResourceModel,
+) bool {
 	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, loadedState)
 	if err != nil {
 		return false
 	}
 
-	// Azure subscription names are cut to a length of 50 characters
-	getFullSubscriptionNameBySuffixInState := func(subscriptionSuffix string) *string {
-		for _, subscription := range loadedState.Subscriptions {
-			if strings.HasSuffix(subscription, subscriptionSuffix) {
-				return &subscription
-			}
-		}
-		return nil
-	}
-
 	updatedSubscriptionState := []string{}
 	for _, azureSubscription := range azureSubscriptions {
-		subscriptionName := getFullSubscriptionNameBySuffixInState(azureSubscription.Name)
+		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(loadedState.Subscriptions, azureSubscription.Name)
 		if subscriptionName == nil {
+			tflog.Warn(ctx, fmt.Sprintf("Subscription %s not found in state", azureSubscription.Name))
 			// Add to the state, which will delete the resource on apply
 			updatedSubscriptionState = append(updatedSubscriptionState, azureSubscription.Name)
 			continue
 		}
 
-		if !asb.IsFilterCorrect(azureSubscription.Filter, *subscriptionName) {
-			state.HasMalformedFilters = types.BoolValue(true)
+		if !asb.IsSubscriptionFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+			tflog.Warn(ctx, fmt.Sprintf("Subscription %s has bad filter", azureSubscription.Name))
+			currentState.HasMalformedFilters = types.BoolValue(true)
 		}
 
+		tflog.Warn(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionName))
 		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
 	}
 
-	for _, subscription := range loadedState.Subscriptions {
-		if subscription == "___IMPORT_ONLY___" {
-			continue
-		}
-
-		if !slices.Contains(updatedSubscriptionState, subscription) {
-			updatedSubscriptionState = append(updatedSubscriptionState, subscription)
-		}
-	}
-
-	state.Subscriptions = updatedSubscriptionState
+	currentState.Subscriptions = updatedSubscriptionState
 	return true
 }
 
@@ -163,6 +147,7 @@ func (r *endpointResource) updateAdditionalQueueState(ctx context.Context, state
 			)
 			return false
 		}
+
 		if !queueExists {
 			index := slices.Index(state.AdditionalQueues, queue)
 			slices.Delete(state.AdditionalQueues, index, index+1)
