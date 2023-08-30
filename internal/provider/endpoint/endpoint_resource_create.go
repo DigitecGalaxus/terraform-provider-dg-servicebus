@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"terraform-provider-dg-servicebus/internal/provider/asb"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"net/http"
-	"terraform-provider-dg-servicebus/internal/provider/asb"
 )
 
 func (r *endpointResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -83,13 +84,20 @@ func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.En
 			)
 			return false
 		}
+
+		resp.Diagnostics.AddError(
+			"Error creating queue",
+			"Could not create queue, unexpected error: "+err.Error(),
+		)
 	default:
 		resp.Diagnostics.AddError(
 			"Error creating queue",
 			"Could not create queue, unexpected error: "+err.Error(),
 		)
+
 		return false
 	}
+	
 	return false
 }
 
