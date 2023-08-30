@@ -66,17 +66,29 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 	model EndpointModel,
 	subscriptionName string,
 ) error {
-	_, err := w.Client.CreateRule(
-		ctx,
-		model.TopicName,
-		model.EndpointName,
-		&az.CreateRuleOptions{
-			Name: to.Ptr(w.encodeSubscriptionRuleName(ctx, model, subscriptionName)),
-			Filter: &az.SQLFilter{
-				Expression: makeSubscriptionFilter(subscriptionName),
+
+	// Retry 3 times as the create rule operation can fail with a 400 error,
+	// which is a transient error, if another operation is in progress
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = w.Client.CreateRule(
+			ctx,
+			model.TopicName,
+			model.EndpointName,
+			&az.CreateRuleOptions{
+				Name: to.Ptr(w.encodeSubscriptionRuleName(ctx, model, subscriptionName)),
+				Filter: &az.SQLFilter{
+					Expression: makeSubscriptionFilter(subscriptionName),
+				},
 			},
-		},
-	)
+		)
+
+		if err == nil {
+			return nil
+		}
+
+		tflog.Info(ctx, "Failed to create subscription rule "+subscriptionName+" with error "+err.Error()+" - retrying")
+	}
 
 	return err
 }
@@ -121,14 +133,25 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 	ruleName := w.encodeSubscriptionRuleName(ctx, model, subscriptionName)
 
 	tflog.Info(ctx, "Deleting subscription rule "+ruleName)
+	
+	// Retry 3 times as the delete rule operation can fail with a 409 conflict error
+	// if another operation is in progress
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = w.Client.DeleteRule(
+			ctx,
+			model.TopicName,
+			model.EndpointName,
+			ruleName,
+			nil,
+		)
 
-	_, err := w.Client.DeleteRule(
-		ctx,
-		model.TopicName,
-		model.EndpointName,
-		ruleName,
-		nil,
-	)
+		if err == nil {
+			return nil
+		}
+
+		tflog.Info(ctx, "Failed to delete subscription rule "+ruleName+" with error "+err.Error()+" - retrying")
+	}
 
 	return err
 }
