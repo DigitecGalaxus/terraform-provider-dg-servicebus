@@ -5,9 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"io"
-	"math"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -71,7 +69,7 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 
 	// Retry 3 times as the create rule operation can fail with a 400 error,
 	// which is a transient error, if another operation is in progress
-	return runWithRetryIncrementalBackOff(
+	return runWithRetryIncrementalBackOffVoid(
 		ctx,
 		"Creating subscription rule "+subscriptionName,
 		func() error {
@@ -96,15 +94,27 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 	model EndpointModel,
 	subscriptionName string,
 ) bool {
-	rule, err := w.Client.GetRule(
+	res, _ := runWithRetryIncrementalBackOff(
 		ctx,
-		model.TopicName,
-		model.EndpointName,
-		w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
-		nil,
+		"Getting subscription rule "+subscriptionName,
+		func() (bool, error) {
+			rule, err := w.Client.GetRule(
+				ctx,
+				model.TopicName,
+				model.EndpointName,
+				w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
+				nil,
+			)
+
+			if err != nil {
+				return false, err
+			}
+
+			return rule != nil, nil
+		},
 	)
 
-	return err != nil && rule != nil
+	return res
 }
 
 func (w *AsbClientWrapper) getEndpointSubscriptionRaw(
@@ -112,15 +122,19 @@ func (w *AsbClientWrapper) getEndpointSubscriptionRaw(
 	model EndpointModel,
 	subscriptionName string,
 ) (*az.GetRuleResponse, error) {
-	rule, err := w.Client.GetRule(
+	return runWithRetryIncrementalBackOff(
 		ctx,
-		model.TopicName,
-		model.EndpointName,
-		subscriptionName,
-		nil,
+		"Getting subscription rule "+subscriptionName,
+		func() (*az.GetRuleResponse, error) {
+			return w.Client.GetRule(
+				ctx,
+				model.TopicName,
+				model.EndpointName,
+				subscriptionName,
+				nil,
+			)
+		},
 	)
-
-	return rule, err
 }
 
 func (w *AsbClientWrapper) DeleteEndpointSubscription(
@@ -134,19 +148,19 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 	
 	// Retry 3 times as the delete rule operation can fail with a 409 conflict error
 	// if another operation is in progress
-	return runWithRetryIncrementalBackOff(
+	return runWithRetryIncrementalBackOffVoid(
 		ctx,
 		"Deleting subscription rule "+ruleName,
 		func() error {
-		_, err := w.Client.DeleteRule(
-			ctx,
-			model.TopicName,
-			model.EndpointName,
-			ruleName,
-			nil,
-		)
+			_, err := w.Client.DeleteRule(
+				ctx,
+				model.TopicName,
+				model.EndpointName,
+				ruleName,
+				nil,
+			)
 
-		return err
+			return err
 	})
 }
 
@@ -161,7 +175,7 @@ func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
 
 	// Retry 3 times as the create rule operation can fail with a 400 error,
 	// which is a transient error, if another operation is in progress
-	return runWithRetryIncrementalBackOff(
+	return runWithRetryIncrementalBackOffVoid(
 		ctx,
 		"Updating subscription rule "+subscriptionName+" with filter "+subscriptionFilter,
 		func() error {
@@ -179,27 +193,6 @@ func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
 
 		return err
 	})
-}
-
-func runWithRetryIncrementalBackOff(
-	ctx context.Context,
-	actionMessage string,
-	fun func() error,
-) error {
-	var err error
-	for i := 0; i < 3; i++ {
-		err = fun()
-		if err == nil {
-			return nil
-		}
-
-		tflog.Info(ctx, actionMessage+" failed with error "+err.Error()+", retrying")
-
-		backOff := time.Second * time.Duration(math.Pow(2, float64(i)))
-		time.Sleep(backOff)
-	}
-
-	return err
 }
 
 func IsSubscriptionFilterCorrect(filter string, subscriptionName string) bool {
