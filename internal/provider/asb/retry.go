@@ -16,7 +16,7 @@ func runWithRetryIncrementalBackOff[TResult any](
 	var err error
 	var res TResult
 	for i := 1; i < 5; i++ {
-		res, err := fun()
+		res, err = fun()
 		if err == nil {
 			return res, nil
 		}
