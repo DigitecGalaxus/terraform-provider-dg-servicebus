@@ -127,8 +127,10 @@ func (r *endpointResource) updateMalformedSubscriptions(
 	}
 
 	for _, subscription := range azureSubscription {
+		tflog.Info(ctx, fmt.Sprintf("Checking subscription update %s", subscription.Name))
 		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(state.Subscriptions, subscription.Name)
 		if subscriptionName == nil {
+			tflog.Info(ctx, fmt.Sprintf("Subscription %s is not managed by Terraform", subscription.Name))
 			// Subscription is not (yet) managed by Terraform
 			// This likely happens when the subscription was created in this update run,
 			// and the previous state does not contain it yet.
@@ -136,9 +138,11 @@ func (r *endpointResource) updateMalformedSubscriptions(
 		}
 
 		if asb.IsSubscriptionFilterCorrect(subscription.Filter, *subscriptionName) {
+			tflog.Info(ctx, fmt.Sprintf("Subscription %s is correct", subscription.Name))
 			continue
 		}
 
+		tflog.Info(ctx, fmt.Sprintf("Subscription %s is incorrect", subscription.Name))
 		err := r.client.EnsureEndpointSubscriptionFilterCorrect(ctx, plan.ToAsbModel(), *subscriptionName)
 		if err != nil {
 			return err
