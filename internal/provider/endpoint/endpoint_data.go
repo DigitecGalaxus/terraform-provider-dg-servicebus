@@ -27,11 +27,7 @@ type endpointDataSource struct {
 }
 
 func (d *endpointDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		resp.Diagnostics.AddError(
-			"Provider Data not set",
-			"Endpoint cannot be read, Provider Data is missing",
-		)
+	if req.ProviderData == nil { // If nil will be configured
 		return
 	}
 

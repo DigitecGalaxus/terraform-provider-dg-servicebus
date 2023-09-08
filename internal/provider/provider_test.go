@@ -27,7 +27,7 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"dgservicebus": providerserver.NewProtocol6WithError(New("test")()),
 }
 
-func TestAccProviderTests(t *testing.T) {
+func TestAcc_TestResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
@@ -50,7 +50,54 @@ func TestAccProviderTests(t *testing.T) {
 					  enable_partitioning   = true,
 					  max_size_in_megabytes = 5120
 					}
-				  }`,
+				}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify number of coffees returned
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "1"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0", "Dg.Test.V1.Subscription"),
+					// Verify the first coffee to ensure all attributes are set
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_exists", "true"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", "test-endpoint"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_exists", "true"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "5120"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_endpoint", "false"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_queue", "false"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_update_subscriptions", "false"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "topic_name", "bundle-1"),
+				),
+			},
+		},
+	})
+}
+
+func TestAcc_TestData(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"azurerm": {
+				Source:            "hashicorp/azurerm",
+				VersionConstraint: "",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig + `
+				data "dgservicebus_endpoint" "test" {
+					endpoint_name = "test-queue"
+					topic_name	= "bundle-1"
+				}
+				`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify number of coffees returned
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "subscriptions.#", "1"),
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "subscriptions.0", "Dg.Test.V1.Subscription"),
+					// Verify the first coffee to ensure all attributes are set
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "endpoint_name", "test-queue"),
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "81920"),
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "topic_name", "bundle-1"),
+				),
 			},
 		},
 	})
