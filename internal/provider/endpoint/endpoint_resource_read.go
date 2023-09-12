@@ -130,9 +130,7 @@ func (r *endpointResource) syncSubscriptionState(
 
 		updatedState.ShouldCreateEndpoint = types.BoolValue(false)
 		updatedState.EndpointExists = types.BoolValue(true)
-		r.updateEndpointSubscriptionState(ctx, updatedState)
-
-		return true
+		return r.updateEndpointSubscriptionState(ctx, updatedState)
 	}
 
 	if !endpointExists {
@@ -149,8 +147,7 @@ func (r *endpointResource) syncSubscriptionState(
 	updatedState.EndpointExists = types.BoolValue(true)
 	updatedState.ShouldCreateEndpoint = types.BoolValue(false)
 
-	r.updateEndpointSubscriptionState(ctx, updatedState)
-	return true
+	return r.updateEndpointSubscriptionState(ctx, updatedState)
 }
 
 func (r *endpointResource) updateEndpointSubscriptionState(
