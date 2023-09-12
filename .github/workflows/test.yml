@@ -71,5 +71,6 @@ jobs:
       - run: go mod download
       - env:
           TF_ACC: "1"
+          DG_SERVICEBUS_CLIENTSECRET: ${{ secrets.DG_MESSAGING_MGMT_PRINCIPAL_SECRET }}
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
