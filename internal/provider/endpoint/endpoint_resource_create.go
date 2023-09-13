@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 func (r *endpointResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -21,16 +22,20 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 
 	model := plan.ToAsbModel()
 
-	var success bool
-
-	success = r.createEndpointQueue(ctx, model, resp)
-	if !success {
-		return
+	if plan.ShouldCreateQueue.ValueBool() {
+		if !r.createEndpointQueue(ctx, model, resp) {
+			return
+		}
+	} else {
+		tflog.Info(ctx, "Queue already exists, skipping creation")
 	}
 
-	success = r.createAdditionalQueues(ctx, model, resp)
-	if !success {
-		return
+	if plan.ShouldCreateEndpoint.ValueBool() {
+		if !r.createAdditionalQueues(ctx, model, resp) {
+			return
+		}
+	}	else {
+		tflog.Info(ctx, "Endpoint already exists, skipping creation")
 	}
 
 	err := r.client.CreateEndpointWithDefaultRule(ctx, model)
