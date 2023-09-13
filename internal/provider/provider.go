@@ -53,7 +53,7 @@ type DgServicebusProviderModel struct {
 func (p *DgServicebusProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "This provider allows you to manage Endpoints for NServiceBus on Azure Service Bus.",
-		
+
 		Attributes: map[string]schema.Attribute{
 			"azure_servicebus_hostname": schema.StringAttribute{
 				Required:    true,
