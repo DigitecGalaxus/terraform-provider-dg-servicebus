@@ -92,25 +92,52 @@ func (r *endpointResource) UpdateSubscriptions(
 			continue
 		}
 
+		
 		tflog.Info(ctx, fmt.Sprintf("Creating subscription %s", planSubscription))
 		err := r.client.CreateEndpointSubscription(ctx, planModel, planSubscription)
-		if err != nil {
-			return err
+		if err == nil {
+			continue
 		}
+
+		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, planSubscription)
+		if subscriptionExists {
+			// Deals with an edge case where the subscription was not correctly identified
+			// by the read operation, due to a failed update before this one.
+			tflog.Info(ctx, fmt.Sprintf(
+				"Subscription %s was already created by a previous update operation that was not persisted in state",
+				planSubscription,
+			))
+			continue
+		}
+		
+		return err
 	}
 
-	for _, previousSubscriptions := range previousState.Subscriptions {
-		tflog.Info(ctx, fmt.Sprintf("Checking subscription delete %s", previousSubscriptions))
-		shouldBeDeleted := !slices.Contains(plan.Subscriptions, previousSubscriptions)
+	for _, previousSubscription := range previousState.Subscriptions {
+		tflog.Info(ctx, fmt.Sprintf("Checking subscription delete %s", previousSubscription))
+		shouldBeDeleted := !slices.Contains(plan.Subscriptions, previousSubscription)
 		if !shouldBeDeleted {
 			continue
 		}
 
-		tflog.Info(ctx, fmt.Sprintf("Deleting subscription %s", previousSubscriptions))
-		err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscriptions)
-		if err != nil {
-			return err
+		tflog.Info(ctx, fmt.Sprintf("Deleting subscription %s", previousSubscription))
+		err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscription)
+		if err == nil {
+			return nil
 		}
+
+		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, previousSubscription)
+		if !subscriptionExists {
+			// Deals with an edge case where the subscription was not correctly identified
+			// by the read operation, due to a failed update before this one.
+			tflog.Info(ctx, fmt.Sprintf(
+				"Subscription %s was already deleted by a previous update operation that was not persisted in state",
+				previousSubscription,
+			))
+			continue
+		}
+
+		return err
 	}
 
 	return nil
