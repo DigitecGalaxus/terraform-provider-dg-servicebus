@@ -16,16 +16,6 @@ const providerConfig = `
 provider "dgservicebus" {
     azure_servicebus_hostname = "DG-PROD-Chabis-Messaging-Testing.servicebus.windows.net"
     tenant_id                 = "35aa8c5b-ac0a-4b15-9788-ff6dfa22901f"
-    client_id                 = "377ac5e1-4767-42c5-b778-d16039b1a201"
-}
-
-
-provider "azurerm" {
-    subscription_id = "1f528d4c-510c-40ed-b8e2-3865dd80f12c" # Module Subscription
-    tenant_id       = "35aa8c5b-ac0a-4b15-9788-ff6dfa22901f"
-    client_id                 = "377ac5e1-4767-42c5-b778-d16039b1a201"
-    
-    features {}
 }
 `
 
@@ -38,12 +28,6 @@ func TestAcc_TestResource(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"azurerm": {
-				Source:            "hashicorp/azurerm",
-				VersionConstraint: "",
-			},
-		},
 		Steps: []resource.TestStep{
 			{
 				Config: providerConfig + fmt.Sprintf(`
@@ -60,10 +44,8 @@ func TestAcc_TestResource(t *testing.T) {
 					}
 				}`, uuid),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify number of coffees returned
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "1"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0", "Dg.Test.V1.Subscription"),
-					// Verify the first coffee to ensure all attributes are set
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_exists", "true"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", fmt.Sprintf("%v-test-endpoint", uuid)),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_exists", "true"),
@@ -82,12 +64,6 @@ func TestAcc_TestResource(t *testing.T) {
 func TestAcc_TestData(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"azurerm": {
-				Source:            "hashicorp/azurerm",
-				VersionConstraint: "",
-			},
-		},
 		Steps: []resource.TestStep{
 			{
 				Config: providerConfig + `
@@ -97,10 +73,8 @@ func TestAcc_TestData(t *testing.T) {
 				}
 				`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify number of coffees returned
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "subscriptions.#", "1"),
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "subscriptions.0", "Dg.Test.V1.Subscription"),
-					// Verify the first coffee to ensure all attributes are set
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "endpoint_name", "test-queue"),
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "81920"),
