@@ -48,6 +48,7 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 		ctx,
 		previousState,
 		plan,
+		resp,
 	)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -75,6 +76,7 @@ func (r *endpointResource) UpdateSubscriptions(
 	ctx context.Context,
 	previousState endpointResourceModel,
 	plan endpointResourceModel,
+	resp *resource.UpdateResponse,
 ) error {
 	planModel := plan.ToAsbModel()
 
@@ -92,24 +94,22 @@ func (r *endpointResource) UpdateSubscriptions(
 			continue
 		}
 
-		
+		tflog.Info(ctx, fmt.Sprintf("Checking subscription exists %s", planSubscription))
+		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, planSubscription)
+		if subscriptionExists {
+			resp.Diagnostics.AddWarning(
+				fmt.Sprintf("Subscription %v rule already exists", planSubscription),
+				"This suggests that the subscription rule may have been created manually. We just add it to the state.",
+			)
+			continue
+		}
+
 		tflog.Info(ctx, fmt.Sprintf("Creating subscription %s", planSubscription))
 		err := r.client.CreateEndpointSubscription(ctx, planModel, planSubscription)
 		if err == nil {
 			continue
 		}
 
-		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, planSubscription)
-		if subscriptionExists {
-			// Deals with an edge case where the subscription was not correctly identified
-			// by the read operation, due to a failed update before this one.
-			tflog.Info(ctx, fmt.Sprintf(
-				"Subscription %s was already created by a previous update operation that was not persisted in state",
-				planSubscription,
-			))
-			continue
-		}
-		
 		return err
 	}
 

@@ -136,6 +136,7 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 	})
 	assert.Nil(t, err, "Could not create queue "+queueTakeoverEnpointName)
 
+	// Create additianl queue
 	err = client.CreateEndpointQueue(ctx, additionalQueueName, asb.EndpointQueueOptions{
 		EnablePartitioning: pointer.Bool(true),
 		MaxSizeInMegabytes: pointer.Int32(int32(5120)),
