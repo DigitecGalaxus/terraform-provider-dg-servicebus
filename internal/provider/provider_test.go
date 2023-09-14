@@ -197,7 +197,7 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 			// Already existing subscription
 			{
 				Config: providerConfig + `
-				resource "dgservicebus_endpoint" "subscription-overtkae" {
+				resource "dgservicebus_endpoint" "subscription-overtake" {
 					endpoint_name = "test-subscription-no-queue"
 					topic_name	= "bundle-1"
 					subscriptions = [
