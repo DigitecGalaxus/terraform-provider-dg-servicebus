@@ -134,7 +134,13 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 		EnablePartitioning: pointer.Bool(true),
 		MaxSizeInMegabytes: pointer.Int32(int32(5120)),
 	})
-	assert.Nil(t, err, "Could not create queue.")
+	assert.Nil(t, err, "Could not create queue "+queueTakeoverEnpointName)
+
+	err = client.CreateEndpointQueue(ctx, additionalQueueName, asb.EndpointQueueOptions{
+		EnablePartitioning: pointer.Bool(true),
+		MaxSizeInMegabytes: pointer.Int32(int32(5120)),
+	})
+	assert.Nil(t, err, "Could not create queue "+additionalQueueName)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
