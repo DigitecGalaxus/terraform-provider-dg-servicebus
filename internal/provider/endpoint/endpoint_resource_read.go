@@ -59,10 +59,12 @@ func (r *endpointResource) syncQueueState(
 
 	queueExistsInAsb := queue != nil
 	terraformPreviouslyCreatedQueue := previousState.QueueExists.ValueBool()
+	endpointName := previousState.EndpointName.ValueString()
 
 	if terraformPreviouslyCreatedQueue {
 		if !queueExistsInAsb {
-			tflog.Info(ctx, "Queue exists in Terraform state but not in Azure Service Bus. It will be recreated on next apply.")
+			resp.Diagnostics.AddWarning(fmt.Sprintf("The queue for endpoint %v exists in Terraform state but not in Azure Service Bus.", endpointName),
+				"This could indicate that someone manually deleted it. It will be recreated on the next apply.")
 			updatedState.ShouldCreateQueue = types.BoolValue(true)
 			updatedState.QueueExists = types.BoolValue(false)
 			return true
@@ -76,9 +78,10 @@ func (r *endpointResource) syncQueueState(
 		return true // Wasn't created yet, what we expect
 	}
 
-	tflog.Info(
-		ctx,
-		"Queue exists in Azure Service Bus but not in Terraform state. Importing queue into Terraform state.",
+	resp.Diagnostics.AddWarning(
+		fmt.Sprintf("Queue for endpoint %v exists in Azure Service Bus but not in Terraform state", endpointName),
+		"This suggests that the queue may have been created manually or that the endpoint already exists, possibly deployed in another infrastructure deployment. "+
+			"If you did not intend to import this endpoint, you can remove it from the Terraform state using `terraform state rm`, or you can contact the platform for support.",
 	)
 
 	applyAsbQueueStateToState(updatedState, queue)
@@ -122,7 +125,8 @@ func (r *endpointResource) syncSubscriptionState(
 
 	if terraformPreviouslyCreatedEndpoint {
 		if !endpointExists {
-			tflog.Info(ctx, "Endpoint exists in Terraform state but not in Azure Service Bus. It will be recreated on next apply.")
+			resp.Diagnostics.AddWarning(fmt.Sprintf("Endpoint %v exists in Terraform state but not in Azure Service Bus.", previousState.EndpointName.ValueString()),
+				"This could indicate that someone manually deleted it. It will be recreated on next apply.")
 			updatedState.ShouldCreateEndpoint = types.BoolValue(true)
 			updatedState.EndpointExists = types.BoolValue(false)
 			return true
@@ -130,7 +134,7 @@ func (r *endpointResource) syncSubscriptionState(
 
 		updatedState.ShouldCreateEndpoint = types.BoolValue(false)
 		updatedState.EndpointExists = types.BoolValue(true)
-		return r.updateEndpointSubscriptionState(ctx, updatedState)
+		return r.updateEndpointSubscriptionState(ctx, updatedState, resp)
 	}
 
 	if !endpointExists {
@@ -139,20 +143,22 @@ func (r *endpointResource) syncSubscriptionState(
 		return true // Wasn't created yet, what we expect
 	}
 
-	tflog.Info(
-		ctx,
-		"Endpoint exists in Azure Service Bus but not in Terraform state. Importing endpoint into Terraform state.",
+	resp.Diagnostics.AddWarning(
+		fmt.Sprintf("Endpoint %v exists in Azure Service Bus but not in Terraform state", previousState.EndpointName.ValueString()),
+		"This suggests that the endpoint may have been created manually or that the endpoint already exists, possibly deployed in another infrastructure deployment. "+
+			"If you did not intend to import this endpoint, you can remove it from the Terraform state using `terraform state rm`, or you can contact the platform for support.",
 	)
 
 	updatedState.EndpointExists = types.BoolValue(true)
 	updatedState.ShouldCreateEndpoint = types.BoolValue(false)
 
-	return r.updateEndpointSubscriptionState(ctx, updatedState)
+	return r.updateEndpointSubscriptionState(ctx, updatedState, resp)
 }
 
 func (r *endpointResource) updateEndpointSubscriptionState(
 	ctx context.Context,
 	updatedState *endpointResourceModel,
+	resp *resource.ReadResponse,
 ) bool {
 	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, updatedState.ToAsbModel())
 	if err != nil {
@@ -163,18 +169,22 @@ func (r *endpointResource) updateEndpointSubscriptionState(
 	for _, azureSubscription := range azureSubscriptions {
 		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(updatedState.Subscriptions, azureSubscription.Name)
 		if subscriptionName == nil {
-			tflog.Warn(ctx, fmt.Sprintf("Subscription %s not found in state", azureSubscription.Name))
+			resp.Diagnostics.AddWarning(fmt.Sprintf("Subscription %v not found in state for endpoint %v", azureSubscription.Name, updatedState.EndpointName),
+				"This could indicate that someone manually added it to the state. When an item is manually added to the state, it will be deleted on the next apply.",
+			)
 			// Add to the state, which will delete the resource on apply
 			updatedSubscriptionState = append(updatedSubscriptionState, azureSubscription.Name)
 			continue
 		}
 
 		if !asb.IsSubscriptionFilterCorrect(azureSubscription.Filter, *subscriptionName) {
-			tflog.Warn(ctx, fmt.Sprintf("Subscription %s has bad filter", azureSubscription.Name))
+			resp.Diagnostics.AddWarning(fmt.Sprintf("Cannot parse rule '%v' in Subscription %v for endpoint %v", azureSubscription.Filter, azureSubscription.Name, updatedState.EndpointName),
+				"This could indicate that someone manually added the rule it. It will be added to the state as is.",
+			)
 			updatedState.HasMalformedFilters = types.BoolValue(true)
 		}
 
-		tflog.Warn(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionName))
+		tflog.Info(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionName))
 		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
 	}
 
