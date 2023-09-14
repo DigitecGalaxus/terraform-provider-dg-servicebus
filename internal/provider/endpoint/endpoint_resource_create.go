@@ -31,7 +31,7 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 			err.Error())
 		endpointExists = false
 	}
-	if (!plan.ShouldCreateEndpoint.IsUnknown() && !plan.ShouldCreateEndpoint.ValueBool()) || endpointExists {
+	if endpointExists {
 		resp.Diagnostics.AddError("Cannot create endpoint",
 			fmt.Sprintf("Subscription %v already existis on topic %v for endpoint %v", model.EndpointName, model.TopicName, model.EndpointName))
 		return
@@ -45,7 +45,7 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 			err.Error())
 		queueExists = false
 	}
-	if (plan.ShouldCreateQueue.IsUnknown() || plan.ShouldCreateQueue.ValueBool()) && !queueExists {
+	if !queueExists {
 		if !r.createEndpointQueue(ctx, model, resp) {
 			return
 		}
