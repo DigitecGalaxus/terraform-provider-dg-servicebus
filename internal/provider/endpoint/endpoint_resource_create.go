@@ -21,19 +21,49 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 
 	model := plan.ToAsbModel()
 
-	var success bool
+	var err error
 
-	success = r.createEndpointQueue(ctx, model, resp)
-	if !success {
+	// Abort if subscription exists
+	endpointExists, err := r.client.EndpointExists(ctx, model)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			fmt.Sprintf("Checking if subscription %v exists failed. Let's assume the endpoint does not exist.", model.EndpointName),
+			err.Error())
+		endpointExists = false
+	}
+	if endpointExists {
+		resp.Diagnostics.AddError("Cannot create endpoint",
+			fmt.Sprintf("Subscription %v already existis on topic %v for endpoint %v", model.EndpointName, model.TopicName, model.EndpointName))
 		return
 	}
 
-	success = r.createAdditionalQueues(ctx, model, resp)
-	if !success {
+	// Only create queue if not existing
+	queueExists, err := r.client.QueueExists(ctx, model.EndpointName)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"The existing queue check failed. Let's assume the queue does not exist.",
+			err.Error())
+		queueExists = false
+	}
+	if !queueExists {
+		if !r.createEndpointQueue(ctx, model, resp) {
+			return
+		}
+	} else {
+		resp.Diagnostics.AddWarning(
+			fmt.Sprintf("Queue %v for endpoint %v already exists.", model.EndpointName, model.EndpointName),
+			"This suggests that the queue may have been created manually or that the endpoint already exists, possibly deployed in another infrastructure deployment."+
+				"If you did not intend to import this endpoint, you can remove it from the Terraform state using `terraform state rm` command, or you can contact the platform for support.",
+		)
+	}
+
+	// Create additional queues without takeover
+	if !r.createAdditionalQueues(ctx, model, resp) {
 		return
 	}
 
-	err := r.client.CreateEndpointWithDefaultRule(ctx, model)
+	// Create subscription and rules
+	err = r.client.CreateEndpointWithDefaultRule(ctx, model)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating subscription",
@@ -53,6 +83,7 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 		}
 	}
 
+	// Update state
 	plan.QueueExists = types.BoolValue(true)
 	plan.EndpointExists = types.BoolValue(true)
 	plan.ShouldCreateQueue = types.BoolValue(false)
@@ -97,13 +128,30 @@ func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.En
 
 		return false
 	}
-	
+
 	return false
 }
 
 func (r *endpointResource) createAdditionalQueues(ctx context.Context, model asb.EndpointModel, resp *resource.CreateResponse) bool {
 	for _, queue := range model.AdditionalQueues {
-		err := r.client.CreateEndpointQueue(ctx, queue, model.QueueOptions)
+		queueExists, err := r.client.QueueExists(ctx, queue)
+		if err != nil {
+			resp.Diagnostics.AddWarning(
+				"The existing queue check failed. Let's assume the queue does not exist.",
+				err.Error())
+			queueExists = false
+		}
+
+		if queueExists {
+			resp.Diagnostics.AddWarning(
+				fmt.Sprintf("Queue %v for endpoint %v already exists.", queue, model.EndpointName),
+				"This suggests that the queue may have been created manually or that the endpoint already exists, possibly deployed in another infrastructure deployment."+
+					"If you did not intend to import this endpoint, you can remove it from the Terraform state using `terraform state rm` command, or you can contact the platform for support.",
+			)
+			continue
+		}
+
+		err = r.client.CreateEndpointQueue(ctx, queue, model.QueueOptions)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error creating additional queue",
@@ -111,6 +159,7 @@ func (r *endpointResource) createAdditionalQueues(ctx context.Context, model asb
 			)
 			return false
 		}
+
 	}
 	return true
 }
