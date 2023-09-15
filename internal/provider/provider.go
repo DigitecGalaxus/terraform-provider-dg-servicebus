@@ -132,39 +132,16 @@ func (p *DgServicebusProvider) Configure(ctx context.Context, req provider.Confi
 	clientId := os.Getenv("DG_SERVICEBUS_CLIENTID")
 	clientSecret := os.Getenv("DG_SERVICEBUS_CLIENTSECRET")
 
-	if tenantId != "" {
-		println("Found tenantId in env variable")
-	}
-	if clientId != "" {
-		println("Found clientId in env variable")
-	}
-	if clientSecret != "" {
-		println("Found clientSecret in env variable")
-	}
-
 	if !config.TenantId.IsNull() {
 		tenantId = config.TenantId.ValueString()
-		println("Set teantId from tf configuration")
 	}
 
 	if !config.ClientId.IsNull() {
 		clientId = config.ClientId.ValueString()
-		println("Set clientId from tf configuration")
 	}
 
 	if !config.ClientSecret.IsNull() {
 		clientSecret = config.ClientSecret.ValueString()
-		println("Set clientSecret from tf configuration")
-	}
-
-	if tenantId != "" {
-		println("TenantId not found")
-	}
-	if clientId != "" {
-		println("ClientId not found")
-	}
-	if clientSecret != "" {
-		println("ClientSecret not found")
 	}
 
 	if resp.Diagnostics.HasError() {
