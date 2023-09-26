@@ -73,20 +73,20 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 		ctx,
 		"Creating subscription rule "+subscriptionName,
 		func() error {
-		_, err := w.Client.CreateRule(
-			ctx,
-			model.TopicName,
-			model.EndpointName,
-			&az.CreateRuleOptions{
-				Name: to.Ptr(w.encodeSubscriptionRuleName(ctx, model, subscriptionName)),
-				Filter: &az.SQLFilter{
-					Expression: makeSubscriptionFilter(subscriptionName),
+			_, err := w.Client.CreateRule(
+				ctx,
+				model.TopicName,
+				model.EndpointName,
+				&az.CreateRuleOptions{
+					Name: to.Ptr(w.encodeSubscriptionRuleName(ctx, model, subscriptionName)),
+					Filter: &az.SQLFilter{
+						Expression: makeSubscriptionFilter(subscriptionName),
+					},
 				},
-			},
-		)
+			)
 
-		return err
-	})
+			return err
+		})
 }
 
 func (w *AsbClientWrapper) EndpointSubscriptionExists(
@@ -94,27 +94,20 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 	model EndpointModel,
 	subscriptionName string,
 ) bool {
-	res, _ := runWithRetryIncrementalBackOff(
+	tflog.Info(ctx, "Checking if subscription rule "+subscriptionName+" exists")
+	rule, err := w.Client.GetRule(
 		ctx,
-		"Getting subscription rule "+subscriptionName,
-		func() (bool, error) {
-			rule, err := w.Client.GetRule(
-				ctx,
-				model.TopicName,
-				model.EndpointName,
-				w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
-				nil,
-			)
-
-			if err != nil {
-				return false, err
-			}
-
-			return rule != nil, nil
-		},
+		model.TopicName,
+		model.EndpointName,
+		w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
+		nil,
 	)
 
-	return res
+	if err != nil {
+		return false
+	}
+
+	return rule != nil
 }
 
 func (w *AsbClientWrapper) getEndpointSubscriptionRaw(
@@ -122,18 +115,14 @@ func (w *AsbClientWrapper) getEndpointSubscriptionRaw(
 	model EndpointModel,
 	subscriptionName string,
 ) (*az.GetRuleResponse, error) {
-	return runWithRetryIncrementalBackOff(
+	tflog.Info(ctx, "Getting subscription rule "+subscriptionName)
+
+	return w.Client.GetRule(
 		ctx,
-		"Getting subscription rule "+subscriptionName,
-		func() (*az.GetRuleResponse, error) {
-			return w.Client.GetRule(
-				ctx,
-				model.TopicName,
-				model.EndpointName,
-				subscriptionName,
-				nil,
-			)
-		},
+		model.TopicName,
+		model.EndpointName,
+		subscriptionName,
+		nil,
 	)
 }
 
@@ -145,7 +134,7 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 	ruleName := w.encodeSubscriptionRuleName(ctx, model, subscriptionName)
 
 	tflog.Info(ctx, "Deleting subscription rule "+ruleName)
-	
+
 	// Retry 3 times as the delete rule operation can fail with a 409 conflict error
 	// if another operation is in progress
 	return runWithRetryIncrementalBackOffVoid(
@@ -161,7 +150,7 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 			)
 
 			return err
-	})
+		})
 }
 
 func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
@@ -179,20 +168,20 @@ func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
 		ctx,
 		"Updating subscription rule "+subscriptionName+" with filter "+subscriptionFilter,
 		func() error {
-		_, err := w.Client.UpdateRule(
-			ctx,
-			model.TopicName,
-			model.EndpointName,
-			az.RuleProperties{
-				Name: w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
-				Filter: &az.SQLFilter{
-					Expression: subscriptionFilter,
+			_, err := w.Client.UpdateRule(
+				ctx,
+				model.TopicName,
+				model.EndpointName,
+				az.RuleProperties{
+					Name: w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
+					Filter: &az.SQLFilter{
+						Expression: subscriptionFilter,
+					},
 				},
-			},
-		)
+			)
 
-		return err
-	})
+			return err
+		})
 }
 
 func IsSubscriptionFilterCorrect(filter string, subscriptionName string) bool {
