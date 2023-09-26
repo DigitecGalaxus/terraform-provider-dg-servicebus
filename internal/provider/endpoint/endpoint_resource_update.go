@@ -131,7 +131,7 @@ func (r *endpointResource) UpdateSubscriptions(
 		tflog.Info(ctx, fmt.Sprintf("Deleting subscription %s", previousSubscription))
 		err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscription)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, previousSubscription)
