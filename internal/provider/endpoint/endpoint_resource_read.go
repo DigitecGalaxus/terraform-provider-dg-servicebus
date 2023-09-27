@@ -75,6 +75,8 @@ func (r *endpointResource) syncQueueState(
 	}
 
 	if !queueExistsInAsb {
+		updatedState.QueueExists = types.BoolValue(false)
+		updatedState.ShouldCreateQueue = types.BoolValue(true)
 		return true // Wasn't created yet, what we expect
 	}
 
@@ -100,6 +102,11 @@ func applyAsbQueueStateToState(
 	if partitioningIsEnabled {
 		maxQueueSizeInMb = maxQueueSizeInMb / 16
 	}
+
+	tflog.Info(
+		context.Background(),
+		fmt.Sprintf("Queue %s has partitioning enabled: %t with max size %d", state.EndpointName, partitioningIsEnabled, maxQueueSizeInMb),
+	)
 
 	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
 	state.QueueOptions.EnablePartitioning = types.BoolValue(partitioningIsEnabled)

@@ -7,7 +7,6 @@ import (
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/slices"
 )
@@ -69,13 +68,6 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 			return
 		}
 	}
-
-	plan.QueueExists = types.BoolValue(true)
-	plan.EndpointExists = types.BoolValue(true)
-	plan.ShouldCreateQueue = types.BoolValue(false)
-	plan.ShouldCreateEndpoint = types.BoolValue(false)
-	plan.HasMalformedFilters = types.BoolValue(false)
-	plan.ShouldUpdateSubscriptions = types.BoolValue(false)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
