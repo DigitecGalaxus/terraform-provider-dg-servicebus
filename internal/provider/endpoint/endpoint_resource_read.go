@@ -105,7 +105,7 @@ func applyAsbQueueStateToState(
 
 	tflog.Info(
 		context.Background(),
-		fmt.Sprintf("Queue %s has partitioning enabled: %t with max size %d", state.EndpointName, partitioningIsEnabled, maxQueueSizeInMb)
+		fmt.Sprintf("Queue %s has partitioning enabled: %t with max size %d", state.EndpointName, partitioningIsEnabled, maxQueueSizeInMb),
 	)
 
 	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
