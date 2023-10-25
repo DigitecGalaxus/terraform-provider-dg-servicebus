@@ -70,6 +70,5 @@ jobs:
           TF_ACC: "1"
           DG_SERVICEBUS_CLIENTSECRET: ${{ secrets.DG_SERVICEBUS_CLIENTSECRET }}
           DG_SERVICEBUS_CLIENTID: ${{ vars.DG_SERVICEBUS_CLIENTID }}
-          AZURE_TENANT_ID: "35aa8c5b-ac0a-4b15-9788-ff6dfa22901f"
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10

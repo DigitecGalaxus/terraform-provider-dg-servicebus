@@ -40,7 +40,7 @@ func createClient(t *testing.T) asb.AsbClientWrapper {
 	var credential azcore.TokenCredential
 	var err error
 
-	if tenantId != "" && clientId != "" && clientSecret != "" {
+	if clientId != "" && clientSecret != "" {
 		credential, err = azidentity.NewClientSecretCredential(tenantId, clientId, clientSecret, nil)
 	} else {
 		credential, err = azidentity.NewDefaultAzureCredential(nil)
