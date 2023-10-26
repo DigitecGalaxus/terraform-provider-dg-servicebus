@@ -78,7 +78,7 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 				model.TopicName,
 				model.EndpointName,
 				&az.CreateRuleOptions{
-					Name: to.Ptr(w.encodeSubscriptionRuleName(ctx, model, subscriptionName)),
+					Name: to.Ptr(w.encodeSubscriptionRuleName(subscriptionName)),
 					Filter: &az.SQLFilter{
 						Expression: makeSubscriptionFilter(subscriptionName),
 					},
@@ -99,7 +99,7 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 		ctx,
 		model.TopicName,
 		model.EndpointName,
-		w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
+		w.encodeSubscriptionRuleName(subscriptionName),
 		nil,
 	)
 
@@ -110,28 +110,12 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 	return rule != nil
 }
 
-func (w *AsbClientWrapper) getEndpointSubscriptionRaw(
-	ctx context.Context,
-	model EndpointModel,
-	subscriptionName string,
-) (*az.GetRuleResponse, error) {
-	tflog.Info(ctx, "Getting subscription rule "+subscriptionName)
-
-	return w.Client.GetRule(
-		ctx,
-		model.TopicName,
-		model.EndpointName,
-		subscriptionName,
-		nil,
-	)
-}
-
 func (w *AsbClientWrapper) DeleteEndpointSubscription(
 	ctx context.Context,
 	model EndpointModel,
 	subscriptionName string,
 ) error {
-	ruleName := w.encodeSubscriptionRuleName(ctx, model, subscriptionName)
+	ruleName := w.encodeSubscriptionRuleName(subscriptionName)
 
 	tflog.Info(ctx, "Deleting subscription rule "+ruleName)
 
@@ -173,7 +157,7 @@ func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
 				model.TopicName,
 				model.EndpointName,
 				az.RuleProperties{
-					Name: w.encodeSubscriptionRuleName(ctx, model, subscriptionName),
+					Name: w.encodeSubscriptionRuleName(subscriptionName),
 					Filter: &az.SQLFilter{
 						Expression: subscriptionFilter,
 					},
@@ -199,24 +183,13 @@ func TryGetFullSubscriptionNameFromRuleName(knownSubscriptionNames []string, rul
 }
 
 func (w *AsbClientWrapper) encodeSubscriptionRuleName(
-	ctx context.Context,
-	model EndpointModel,
 	subscriptionName string,
 ) string {
-	if len(subscriptionName) < MAX_RULE_NAME_LENGTH {
-		return subscriptionName
-	}
-
-	existingSubscription, err := w.getEndpointSubscriptionRaw(ctx, model, subscriptionName)
-	if err == nil || existingSubscription != nil {
-		return subscriptionName
-	}
-
 	return getRuleNameWithUniqueIdentifier(subscriptionName)
 }
 
 func getRuleNameWithUniqueIdentifier(subscriptionName string) string {
-	if len(subscriptionName) < MAX_RULE_NAME_LENGTH {
+	if len(subscriptionName) <= MAX_RULE_NAME_LENGTH {
 		return subscriptionName
 	}
 
