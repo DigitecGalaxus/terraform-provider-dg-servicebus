@@ -53,8 +53,9 @@ type endpointDataSourceModel struct {
 }
 
 type endpointDataSourceQueueOptionsModel struct {
-	EnablePartitioning types.Bool  `tfsdk:"enable_partitioning"`
-	MaxSizeInMegabytes types.Int64 `tfsdk:"max_size_in_megabytes"`
+	EnablePartitioning        types.Bool  `tfsdk:"enable_partitioning"`
+	MaxSizeInMegabytes        types.Int64 `tfsdk:"max_size_in_megabytes"`
+	MaxMessageSizeInKilobytes types.Int64 `tfsdk:"max_message_size_in_kilobytes"`
 }
 
 func (d *endpointDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -101,8 +102,9 @@ func (model endpointDataSourceModel) ToAsbModel() asb.EndpointModel {
 		TopicName:     model.TopicName.ValueString(),
 		Subscriptions: model.Subscriptions,
 		QueueOptions: asb.EndpointQueueOptions{
-			EnablePartitioning: model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
-			MaxSizeInMegabytes: to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
+			EnablePartitioning:        model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
+			MaxSizeInMegabytes:        to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
+			MaxMessageSizeInKilobytes: to.Ptr(model.QueueOptions.MaxMessageSizeInKilobytes.ValueInt64()),
 		},
 	}
 }

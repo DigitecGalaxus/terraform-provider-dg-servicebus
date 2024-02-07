@@ -12,6 +12,7 @@ type EndpointModel struct {
 }
 
 type EndpointQueueOptions struct {
-	EnablePartitioning *bool
-	MaxSizeInMegabytes *int32
+	EnablePartitioning        *bool
+	MaxSizeInMegabytes        *int32
+	MaxMessageSizeInKilobytes *int64
 }
