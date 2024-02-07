@@ -90,6 +90,9 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 					"max_size_in_megabytes": schema.Int64Attribute{
 						Computed: true,
 					},
+					"max_message_size_in_kilobytes": schema.Int64Attribute{
+						Computed: true,
+					},
 				},
 			},
 		},
@@ -152,6 +155,7 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	state.QueueOptions.EnablePartitioning = types.BoolValue(*queue.EnablePartitioning)
 	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(*queue.MaxSizeInMegabytes))
+	state.QueueOptions.MaxMessageSizeInKilobytes = types.Int64Value(int64(*queue.MaxMessageSizeInKilobytes))
 
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
