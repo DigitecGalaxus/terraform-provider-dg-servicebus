@@ -39,3 +39,4 @@ Read-Only:
 
 - `enable_partitioning` (Boolean)
 - `max_size_in_megabytes` (Number)
+- `max_message_size_in_kilobytes` (Number)

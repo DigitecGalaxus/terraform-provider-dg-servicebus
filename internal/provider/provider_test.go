@@ -75,7 +75,8 @@ func TestAcc_TestResource(t *testing.T) {
 
 					queue_options = {
 					  enable_partitioning   = true,
-					  max_size_in_megabytes = 5120
+					  max_size_in_megabytes = 5120,
+					  max_message_size_in_kilobytes = 256
 					}
 				}`, uuid, uuid),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -88,6 +89,7 @@ func TestAcc_TestResource(t *testing.T) {
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_exists", "true"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "5120"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_message_size_in_kilobytes", "256"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_endpoint", "false"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_queue", "false"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_update_subscriptions", "false"),
@@ -115,6 +117,7 @@ func TestAcc_TestData(t *testing.T) {
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "endpoint_name", "test-queue"),
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "81920"),
+					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "queue_options.max_message_size_in_kilobytes", "256"),
 					resource.TestCheckResourceAttr("data.dgservicebus_endpoint.test", "topic_name", "bundle-1"),
 				),
 			},
@@ -131,15 +134,17 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 	var ctx context.Context = context.Background()
 	var client = createClient(t)
 	var err = client.CreateEndpointQueue(ctx, queueTakeoverEnpointName, asb.EndpointQueueOptions{
-		EnablePartitioning: pointer.Bool(true),
-		MaxSizeInMegabytes: pointer.Int32(int32(5120)),
+		EnablePartitioning:        pointer.Bool(true),
+		MaxSizeInMegabytes:        pointer.Int32(int32(5120)),
+		MaxMessageSizeInKilobytes: pointer.Int64(int64(256)),
 	})
 	assert.Nil(t, err, "Could not create queue "+queueTakeoverEnpointName)
 
-	// Create additianl queue
+	// Create additional queue
 	err = client.CreateEndpointQueue(ctx, additionalQueueName, asb.EndpointQueueOptions{
-		EnablePartitioning: pointer.Bool(true),
-		MaxSizeInMegabytes: pointer.Int32(int32(5120)),
+		EnablePartitioning:        pointer.Bool(true),
+		MaxSizeInMegabytes:        pointer.Int32(int32(5120)),
+		MaxMessageSizeInKilobytes: pointer.Int64(int64(256)),
 	})
 	assert.Nil(t, err, "Could not create queue "+additionalQueueName)
 
@@ -156,7 +161,8 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 
 					queue_options = {
 						enable_partitioning   = true,
-						max_size_in_megabytes = 5120
+						max_size_in_megabytes = 5120,
+						max_message_size_in_kilobytes = 256
 					}
 				}
 				`, queueTakeoverEnpointName),
@@ -165,6 +171,7 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "endpoint_name", queueTakeoverEnpointName),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.enable_partitioning", "true"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.max_size_in_megabytes", "5120"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.max_message_size_in_kilobytes", "256"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "topic_name", "bundle-1"),
 				),
 			},
@@ -181,7 +188,8 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 
 					queue_options = {
 						enable_partitioning   = true,
-						max_size_in_megabytes = 5120
+						max_size_in_megabytes = 5120,
+						max_message_size_in_kilobytes = 256
 					}
 				}
 				`, additionalQueueTakeoverEndpointName, additionalQueueName),
@@ -192,6 +200,7 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.additional-queue-takeover", "additional_queues.0", additionalQueueName),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.additional-queue-takeover", "queue_options.enable_partitioning", "true"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.additional-queue-takeover", "queue_options.max_size_in_megabytes", "5120"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.additional-queue-takeover", "queue_options.max_message_size_in_kilobytes", "256"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.additional-queue-takeover", "topic_name", "bundle-1"),
 				),
 			},
@@ -207,7 +216,8 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 
 					queue_options = {
 						enable_partitioning   = true,
-						max_size_in_megabytes = 5120
+						max_size_in_megabytes = 5120,
+						max_message_size_in_kilobytes = 256
 					}
 				}
 				`,

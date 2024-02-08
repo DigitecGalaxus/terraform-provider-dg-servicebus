@@ -14,22 +14,23 @@ func (w *AsbClientWrapper) CreateEndpointQueue(
 ) error {
 	return runWithRetryIncrementalBackOffVoid(
 		ctx,
-		"Creating queue" + queueName,
+		"Creating queue"+queueName,
 		func() error {
 			_, err := w.Client.CreateQueue(
 				ctx,
 				queueName,
 				&az.CreateQueueOptions{
 					Properties: &az.QueueProperties{
-						EnablePartitioning:      queueOptions.EnablePartitioning,
-						MaxSizeInMegabytes:      queueOptions.MaxSizeInMegabytes,
-						MaxDeliveryCount:        to.Ptr(MAX_DELIVERY_COUNT),
-						LockDuration:            to.Ptr("PT5M"),
-						EnableBatchedOperations: to.Ptr(true),
+						EnablePartitioning:        queueOptions.EnablePartitioning,
+						MaxSizeInMegabytes:        queueOptions.MaxSizeInMegabytes,
+						MaxMessageSizeInKilobytes: queueOptions.MaxMessageSizeInKilobytes,
+						MaxDeliveryCount:          to.Ptr(MAX_DELIVERY_COUNT),
+						LockDuration:              to.Ptr("PT5M"),
+						EnableBatchedOperations:   to.Ptr(true),
 					},
 				},
 			)
-		
+
 			return err
 		},
 	)
@@ -40,14 +41,14 @@ func (w *AsbClientWrapper) DeleteEndpointQueue(
 	model EndpointModel,
 ) error {
 	return runWithRetryIncrementalBackOffVoid(
-		ctx, "Deleting queue" + model.EndpointName,
+		ctx, "Deleting queue"+model.EndpointName,
 		func() error {
 			_, err := w.Client.DeleteQueue(
 				ctx,
 				model.EndpointName,
 				nil,
 			)
-		
+
 			return err
 		},
 	)
@@ -59,7 +60,7 @@ func (w *AsbClientWrapper) DeleteAdditionalQueue(
 ) error {
 	return runWithRetryIncrementalBackOffVoid(
 		ctx,
-		"Deleting queue" + queueName,
+		"Deleting queue"+queueName,
 		func() error {
 			_, err := w.Client.DeleteQueue(
 				ctx,
@@ -78,7 +79,7 @@ func (w *AsbClientWrapper) GetEndpointQueue(
 ) (*az.GetQueueResponse, error) {
 	return runWithRetryIncrementalBackOff(
 		ctx,
-		"Getting queue" + model.EndpointName,
+		"Getting queue"+model.EndpointName,
 		func() (*az.GetQueueResponse, error) {
 			return w.Client.GetQueue(
 				ctx,
@@ -89,17 +90,17 @@ func (w *AsbClientWrapper) GetEndpointQueue(
 	)
 }
 
-func (w *AsbClientWrapper) QueueExists(ctx context.Context, queueName string,) (bool, error) {
+func (w *AsbClientWrapper) QueueExists(ctx context.Context, queueName string) (bool, error) {
 	return runWithRetryIncrementalBackOff(
 		ctx,
-		"Getting queue" + queueName,
+		"Getting queue"+queueName,
 		func() (bool, error) {
 			queue, err := w.Client.GetQueue(ctx, queueName, nil)
-			
+
 			if err != nil {
 				return false, err
 			}
-			
+
 			if queue == nil {
 				return false, nil
 			}

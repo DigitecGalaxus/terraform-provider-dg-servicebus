@@ -96,6 +96,9 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 							intOneOfValues([]int64{1024, 2048, 3072, 4096, 5120}),
 						},
 					},
+					"max_message_size_in_kilobytes": schema.Int64Attribute{
+						Required: true,
+					},
 				},
 			},
 			"queue_exists": schema.BoolAttribute{
@@ -162,8 +165,9 @@ type endpointResourceModel struct {
 }
 
 type endpointResourceQueueOptionsModel struct {
-	EnablePartitioning types.Bool  `tfsdk:"enable_partitioning"`
-	MaxSizeInMegabytes types.Int64 `tfsdk:"max_size_in_megabytes"`
+	EnablePartitioning        types.Bool  `tfsdk:"enable_partitioning"`
+	MaxSizeInMegabytes        types.Int64 `tfsdk:"max_size_in_megabytes"`
+	MaxMessageSizeInKilobytes types.Int64 `tfsdk:"max_message_size_in_kilobytes"`
 }
 
 func (model endpointResourceModel) ToAsbModel() asb.EndpointModel {
@@ -173,8 +177,9 @@ func (model endpointResourceModel) ToAsbModel() asb.EndpointModel {
 		Subscriptions:    model.Subscriptions,
 		AdditionalQueues: model.AdditionalQueues,
 		QueueOptions: asb.EndpointQueueOptions{
-			EnablePartitioning: model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
-			MaxSizeInMegabytes: to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
+			EnablePartitioning:        model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
+			MaxSizeInMegabytes:        to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
+			MaxMessageSizeInKilobytes: to.Ptr(model.QueueOptions.MaxMessageSizeInKilobytes.ValueInt64()),
 		},
 	}
 }
