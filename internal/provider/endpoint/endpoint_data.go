@@ -155,7 +155,7 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	state.QueueOptions.EnablePartitioning = types.BoolValue(*queue.EnablePartitioning)
 	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(*queue.MaxSizeInMegabytes))
-	state.QueueOptions.MaxMessageSizeInKilobytes = types.Int64Value(int64(*queue.MaxMessageSizeInKilobytes))
+	state.QueueOptions.MaxMessageSizeInKilobytes = types.Int64Value(*queue.MaxMessageSizeInKilobytes)
 
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

@@ -110,7 +110,7 @@ func applyAsbQueueStateToState(
 
 	state.QueueOptions.MaxSizeInMegabytes = types.Int64Value(int64(maxQueueSizeInMb))
 	state.QueueOptions.EnablePartitioning = types.BoolValue(partitioningIsEnabled)
-	state.QueueOptions.MaxMessageSizeInKilobytes = types.Int64Value(int64(*queue.QueueProperties.MaxMessageSizeInKilobytes))
+	state.QueueOptions.MaxMessageSizeInKilobytes = types.Int64Value(*queue.QueueProperties.MaxMessageSizeInKilobytes)
 }
 
 func (r *endpointResource) syncSubscriptionState(
