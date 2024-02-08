@@ -140,7 +140,7 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 	})
 	assert.Nil(t, err, "Could not create queue "+queueTakeoverEnpointName)
 
-	// Create additianl queue
+	// Create additional queue
 	err = client.CreateEndpointQueue(ctx, additionalQueueName, asb.EndpointQueueOptions{
 		EnablePartitioning:        pointer.Bool(true),
 		MaxSizeInMegabytes:        pointer.Int32(int32(5120)),
@@ -171,7 +171,7 @@ func TestAcc_ResourceTakeover(t *testing.T) {
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "endpoint_name", queueTakeoverEnpointName),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.enable_partitioning", "true"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.max_size_in_megabytes", "5120"),
-					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.max_messagesize_in_kilobytes", "256"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "queue_options.max_message_size_in_kilobytes", "256"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.queue-takeover", "topic_name", "bundle-1"),
 				),
 			},

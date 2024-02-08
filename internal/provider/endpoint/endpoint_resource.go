@@ -96,6 +96,9 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 							intOneOfValues([]int64{1024, 2048, 3072, 4096, 5120}),
 						},
 					},
+					"max_message_size_in_kilobytes": schema.Int64Attribute{
+						Required: true,
+					},
 				},
 			},
 			"queue_exists": schema.BoolAttribute{
