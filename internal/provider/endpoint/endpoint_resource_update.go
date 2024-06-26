@@ -95,7 +95,7 @@ func (r *endpointResource) UpdateSubscriptions(
 		}
 
 		tflog.Info(ctx, fmt.Sprintf("Checking subscription exists %s", planSubscription))
-		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, planSubscription)
+		subscriptionExists := r.client.AsbSubscriptionRuleExists(ctx, planModel, planSubscription)
 		if subscriptionExists {
 			resp.Diagnostics.AddWarning(
 				fmt.Sprintf("Subscription %v rule already exists", planSubscription),
@@ -105,7 +105,7 @@ func (r *endpointResource) UpdateSubscriptions(
 		}
 
 		tflog.Info(ctx, fmt.Sprintf("Creating subscription %s", planSubscription))
-		err := r.client.CreateEndpointSubscription(ctx, planModel, planSubscription)
+		err := r.client.CreateAsbSubscriptionRule(ctx, planModel, planSubscription, plan.SubscriptionFilterType.ValueString())
 		if err == nil {
 			continue
 		}
@@ -121,12 +121,12 @@ func (r *endpointResource) UpdateSubscriptions(
 		}
 
 		tflog.Info(ctx, fmt.Sprintf("Deleting subscription %s", previousSubscription))
-		err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscription)
+		err := r.client.DeleteAsbSubscriptionRule(ctx, planModel, previousSubscription)
 		if err != nil {
 			return err
 		}
 
-		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, previousSubscription)
+		subscriptionExists := r.client.AsbSubscriptionRuleExists(ctx, planModel, previousSubscription)
 		if !subscriptionExists {
 			// Deals with an edge case where the subscription was not correctly identified
 			// by the read operation, due to a failed update before this one.
@@ -148,33 +148,44 @@ func (r *endpointResource) updateMalformedSubscriptions(
 	state endpointResourceModel,
 	plan endpointResourceModel,
 ) error {
-	azureSubscription, err := r.client.GetEndpointSubscriptions(ctx, plan.ToAsbModel())
+	azureSubscription, err := r.client.GetAsbSubscriptionsRules(ctx, plan.ToAsbModel())
 	if err != nil {
 		return err
 	}
 
 	for _, subscription := range azureSubscription {
 		tflog.Info(ctx, fmt.Sprintf("Checking subscription update %s", subscription.Name))
-		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(state.Subscriptions, subscription.Name)
-		if subscriptionName == nil {
+		subscriptionFilterValue := asb.GetSubscriptionFilterValueForAsbRuleName(mergeUnique(state.Subscriptions, plan.Subscriptions), subscription.Name)
+		if subscriptionFilterValue == nil {
 			tflog.Info(ctx, fmt.Sprintf("Subscription %s is not managed by Terraform", subscription.Name))
-			// Subscription is not (yet) managed by Terraform
-			// This likely happens when the subscription was created in this update run,
-			// and the previous state does not contain it yet.
+			// This should not happen anymore since we merge the state and the plan subscriptions together
 			continue
 		}
 
-		if asb.IsSubscriptionFilterCorrect(subscription.Filter, *subscriptionName) {
+		if asb.IsAsbSubscriptionRuleCorrect(subscription.Filter, *subscriptionFilterValue, plan.SubscriptionFilterType.ValueString()) {
 			tflog.Info(ctx, fmt.Sprintf("Subscription %s is correct", subscription.Name))
 			continue
 		}
 
 		tflog.Info(ctx, fmt.Sprintf("Subscription %s is incorrect", subscription.Name))
-		err := r.client.EnsureEndpointSubscriptionFilterCorrect(ctx, plan.ToAsbModel(), *subscriptionName)
+		err := r.client.EnsureAsbSubscriptionRuleIsCorrect(ctx, plan.ToAsbModel(), *subscriptionFilterValue, plan.SubscriptionFilterType.ValueString())
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func mergeUnique(a []string, b []string) []string {
+	unique := make(map[string]*string)
+	for _, item := range append(a, b...) {
+		unique[item] = nil
+	}
+
+	var result []string
+	for key := range unique {
+		result = append(result, key)
+	}
+	return result
 }

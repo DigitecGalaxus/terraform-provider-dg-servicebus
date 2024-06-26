@@ -13,9 +13,10 @@ import (
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 )
 
-type Subscription struct {
-	Name   string
-	Filter string
+type AsbSubscriptionRule struct {
+	Name       string
+	Filter     string
+	FilterType string
 }
 
 const MAX_RULE_NAME_LENGTH = 50
@@ -23,11 +24,11 @@ const SHA_1_BYTE_LENGTH = 20
 const SUBSCRIPTION_NAME_IDENTIFIER_LENGTH = SHA_1_BYTE_LENGTH / 2
 const SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR = "--"
 
-func (w *AsbClientWrapper) GetEndpointSubscriptions(
+func (w *AsbClientWrapper) GetAsbSubscriptionsRules(
 	ctx context.Context,
-	model EndpointModel,
-) ([]Subscription, error) {
-	subscriptions := []Subscription{}
+	model AsbEndpointModel,
+) ([]AsbSubscriptionRule, error) {
+	subscriptions := []AsbSubscriptionRule{}
 	pager := w.Client.NewListRulesPager(
 		model.TopicName,
 		model.EndpointName,
@@ -44,44 +45,63 @@ func (w *AsbClientWrapper) GetEndpointSubscriptions(
 				continue
 			}
 
-			sqlFilter, ok := rule.Filter.(*az.SQLFilter)
-			if !ok {
+			switch rule.Filter.(type) {
+			case *az.CorrelationFilter:
+				correlationFilter, ok := rule.Filter.(*az.CorrelationFilter)
+				if !ok {
+					continue
+				}
+				filter, ok := correlationFilter.ApplicationProperties["NServiceBus.EnclosedMessageTypes"].(string)
+				if !ok {
+					continue
+				}
+				subscription := AsbSubscriptionRule{
+					Name:       rule.Name,
+					Filter:     filter,
+					FilterType: "correlation",
+				}
+				subscriptions = append(subscriptions, subscription)
+			case *az.SQLFilter:
+				sqlFilter, ok := rule.Filter.(*az.SQLFilter)
+				if !ok {
+					continue
+				}
+				subscription := AsbSubscriptionRule{
+					Name:       rule.Name,
+					Filter:     sqlFilter.Expression,
+					FilterType: "sql",
+				}
+
+				subscriptions = append(subscriptions, subscription)
+			default:
 				continue
 			}
-
-			subscription := Subscription{
-				Name:   rule.Name,
-				Filter: sqlFilter.Expression,
-			}
-
-			subscriptions = append(subscriptions, subscription)
 		}
 	}
 
 	return subscriptions, nil
 }
 
-func (w *AsbClientWrapper) CreateEndpointSubscription(
+func (w *AsbClientWrapper) CreateAsbSubscriptionRule(
 	ctx context.Context,
-	model EndpointModel,
-	subscriptionName string,
+	model AsbEndpointModel,
+	subscriptionFilterValue string,
+	subscriptionFilterType string,
 ) error {
 
 	// Retry 3 times as the create rule operation can fail with a 400 error,
 	// which is a transient error, if another operation is in progress
 	return runWithRetryIncrementalBackOffVoid(
 		ctx,
-		"Creating subscription rule "+subscriptionName,
+		"Creating subscription rule "+subscriptionFilterValue,
 		func() error {
 			_, err := w.Client.CreateRule(
 				ctx,
 				model.TopicName,
 				model.EndpointName,
 				&az.CreateRuleOptions{
-					Name: to.Ptr(w.encodeSubscriptionRuleName(subscriptionName)),
-					Filter: &az.SQLFilter{
-						Expression: makeSubscriptionFilter(subscriptionName),
-					},
+					Name:   to.Ptr(w.encodeAsbSubscriptionRuleNameFromFitlerValue(subscriptionFilterValue)),
+					Filter: createSubscriptionRule(subscriptionFilterType, subscriptionFilterValue),
 				},
 			)
 
@@ -89,17 +109,35 @@ func (w *AsbClientWrapper) CreateEndpointSubscription(
 		})
 }
 
-func (w *AsbClientWrapper) EndpointSubscriptionExists(
+func createSubscriptionRule(subscriptionFilterType, subscriptionFilterValue string) az.RuleFilter {
+	switch subscriptionFilterType {
+	case "correlation":
+		return &az.CorrelationFilter{
+			ApplicationProperties: map[string]interface{}{
+				"NServiceBus.EnclosedMessageTypes": subscriptionFilterValue,
+			},
+		}
+	case "sql":
+		return &az.SQLFilter{
+			Expression: makeSubscriptionSqlRuleFilter(subscriptionFilterValue),
+		}
+	default:
+		tflog.Error(context.Background(), "Invalid subscription filter type: "+subscriptionFilterType)
+		return nil
+	}
+}
+
+func (w *AsbClientWrapper) AsbSubscriptionRuleExists(
 	ctx context.Context,
-	model EndpointModel,
-	subscriptionName string,
+	model AsbEndpointModel,
+	subscriptionRuleValue string,
 ) bool {
-	tflog.Info(ctx, "Checking if subscription rule "+subscriptionName+" exists")
+	tflog.Info(ctx, "Checking if subscription rule "+subscriptionRuleValue+" exists")
 	rule, err := w.Client.GetRule(
 		ctx,
 		model.TopicName,
 		model.EndpointName,
-		w.encodeSubscriptionRuleName(subscriptionName),
+		w.encodeAsbSubscriptionRuleNameFromFitlerValue(subscriptionRuleValue),
 		nil,
 	)
 
@@ -110,12 +148,12 @@ func (w *AsbClientWrapper) EndpointSubscriptionExists(
 	return rule != nil
 }
 
-func (w *AsbClientWrapper) DeleteEndpointSubscription(
+func (w *AsbClientWrapper) DeleteAsbSubscriptionRule(
 	ctx context.Context,
-	model EndpointModel,
-	subscriptionName string,
+	model AsbEndpointModel,
+	subscriptionFilterValue string,
 ) error {
-	ruleName := w.encodeSubscriptionRuleName(subscriptionName)
+	ruleName := w.encodeAsbSubscriptionRuleNameFromFitlerValue(subscriptionFilterValue)
 
 	tflog.Info(ctx, "Deleting subscription rule "+ruleName)
 
@@ -137,30 +175,27 @@ func (w *AsbClientWrapper) DeleteEndpointSubscription(
 		})
 }
 
-func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
+func (w *AsbClientWrapper) EnsureAsbSubscriptionRuleIsCorrect(
 	ctx context.Context,
-	model EndpointModel,
-	subscriptionName string,
+	model AsbEndpointModel,
+	subscriptionFilterValue string,
+	subscriptionFilterType string,
 ) error {
-	subscriptionFilter := makeSubscriptionFilter(subscriptionName)
-
-	tflog.Info(ctx, "Updating subscription rule "+subscriptionName+" with filter "+subscriptionFilter)
+	tflog.Info(ctx, "Ensuring subscription rule value "+subscriptionFilterValue+" for filter type "+subscriptionFilterType+" is correct")
 
 	// Retry 3 times as the create rule operation can fail with a 400 error,
 	// which is a transient error, if another operation is in progress
 	return runWithRetryIncrementalBackOffVoid(
 		ctx,
-		"Updating subscription rule "+subscriptionName+" with filter "+subscriptionFilter,
+		"Updating subscription rule "+subscriptionFilterValue+" with filter type"+subscriptionFilterType,
 		func() error {
 			_, err := w.Client.UpdateRule(
 				ctx,
 				model.TopicName,
 				model.EndpointName,
 				az.RuleProperties{
-					Name: w.encodeSubscriptionRuleName(subscriptionName),
-					Filter: &az.SQLFilter{
-						Expression: subscriptionFilter,
-					},
+					Name:   w.encodeAsbSubscriptionRuleNameFromFitlerValue(subscriptionFilterValue),
+					Filter: createSubscriptionRule(subscriptionFilterType, subscriptionFilterValue),
 				},
 			)
 
@@ -168,36 +203,46 @@ func (w *AsbClientWrapper) EnsureEndpointSubscriptionFilterCorrect(
 		})
 }
 
-func IsSubscriptionFilterCorrect(filter string, subscriptionName string) bool {
-	return filter == makeSubscriptionFilter(subscriptionName)
+func IsAsbSubscriptionRuleCorrect(currentFilter string, subscriptionFilterValue string, subscriptionFilterType string) bool {
+	switch subscriptionFilterType {
+	case "correlation":
+		return currentFilter == subscriptionFilterValue
+	case "sql":
+		return currentFilter == makeSubscriptionSqlRuleFilter(subscriptionFilterValue)
+	default:
+		tflog.Error(context.Background(), "Invalid subscription filter type: "+subscriptionFilterType)
+		return true
+	}
 }
 
-func TryGetFullSubscriptionNameFromRuleName(knownSubscriptionNames []string, ruleName string) *string {
-	for _, subscription := range knownSubscriptionNames {
-		if ruleName == getRuleNameWithUniqueIdentifier(subscription) {
-			return &subscription
+func GetSubscriptionFilterValueForAsbRuleName(knownSubscriptionFilterValues []string, ruleName string) *string {
+	for _, subscriptionFilterValue := range knownSubscriptionFilterValues {
+		if ruleName == getRuleNameWithUniqueIdentifier(subscriptionFilterValue) {
+			return &subscriptionFilterValue
 		}
 	}
 
 	return nil
 }
 
-func (w *AsbClientWrapper) encodeSubscriptionRuleName(
+func (w *AsbClientWrapper) encodeAsbSubscriptionRuleNameFromFitlerValue(
 	subscriptionName string,
 ) string {
 	return getRuleNameWithUniqueIdentifier(subscriptionName)
 }
 
 func getRuleNameWithUniqueIdentifier(subscriptionName string) string {
-	if len(subscriptionName) <= MAX_RULE_NAME_LENGTH {
-		return subscriptionName
+	replacer := strings.NewReplacer(",", "", " ", "_", "=", "_")
+	validSubscriptionName := replacer.Replace(subscriptionName)
+	if len(validSubscriptionName) <= MAX_RULE_NAME_LENGTH {
+		return validSubscriptionName
 	}
 
-	identifier := getUniqueSubscriptionIdentifier(subscriptionName)
+	identifier := getUniqueSubscriptionIdentifier(validSubscriptionName)
 
 	// We try to ensure that the rule name is unique, but still traceable to the subscription name
 	ruleNameLength := MAX_RULE_NAME_LENGTH - len(identifier) - len(SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR)
-	croppedSubscriptionName := cropStringToLength(subscriptionName, ruleNameLength)
+	croppedSubscriptionName := cropStringToLength(validSubscriptionName, ruleNameLength)
 	return croppedSubscriptionName + SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR + identifier
 }
 
@@ -225,6 +270,6 @@ func cropStringToLength(subscriptionName string, length int) string {
 	return subscriptionName[len(subscriptionName)-length:]
 }
 
-func makeSubscriptionFilter(subscriptionName string) string {
-	return "[NServiceBus.EnclosedMessageTypes] LIKE '%" + subscriptionName + "%'"
+func makeSubscriptionSqlRuleFilter(subscriptionFilterValue string) string {
+	return "[NServiceBus.EnclosedMessageTypes] LIKE '%" + subscriptionFilterValue + "%'"
 }

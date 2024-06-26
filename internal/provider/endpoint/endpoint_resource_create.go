@@ -73,7 +73,7 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	for i := 0; i < len(plan.Subscriptions); i++ {
-		err := r.client.CreateEndpointSubscription(ctx, model, plan.Subscriptions[i])
+		err := r.client.CreateAsbSubscriptionRule(ctx, model, plan.Subscriptions[i], plan.SubscriptionFilterType.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error creating rule",
@@ -97,7 +97,7 @@ func (r *endpointResource) Create(ctx context.Context, req resource.CreateReques
 	}
 }
 
-func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.EndpointModel, resp *resource.CreateResponse) bool {
+func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.AsbEndpointModel, resp *resource.CreateResponse) bool {
 	err := r.client.CreateEndpointQueue(ctx, model.EndpointName, model.QueueOptions)
 	if err == nil {
 		return true
@@ -132,7 +132,7 @@ func (r *endpointResource) createEndpointQueue(ctx context.Context, model asb.En
 	return false
 }
 
-func (r *endpointResource) createAdditionalQueues(ctx context.Context, model asb.EndpointModel, resp *resource.CreateResponse) bool {
+func (r *endpointResource) createAdditionalQueues(ctx context.Context, model asb.AsbEndpointModel, resp *resource.CreateResponse) bool {
 	for _, queue := range model.AdditionalQueues {
 		queueExists, err := r.client.QueueExists(ctx, queue)
 		if err != nil {

@@ -168,15 +168,15 @@ func (r *endpointResource) updateEndpointSubscriptionState(
 	updatedState *endpointResourceModel,
 	resp *resource.ReadResponse,
 ) bool {
-	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, updatedState.ToAsbModel())
+	azureSubscriptions, err := r.client.GetAsbSubscriptionsRules(ctx, updatedState.ToAsbModel())
 	if err != nil {
 		return false
 	}
 
 	updatedSubscriptionState := []string{}
 	for _, azureSubscription := range azureSubscriptions {
-		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(updatedState.Subscriptions, azureSubscription.Name)
-		if subscriptionName == nil {
+		subscriptionFilterType := asb.GetSubscriptionFilterValueForAsbRuleName(updatedState.Subscriptions, azureSubscription.Name)
+		if subscriptionFilterType == nil {
 			resp.Diagnostics.AddWarning(fmt.Sprintf("Subscription %v not found in state for endpoint %v", azureSubscription.Name, updatedState.EndpointName),
 				"This could indicate that someone manually added it to the state. When an item is manually added to the state, it will be deleted on the next apply.",
 			)
@@ -185,15 +185,15 @@ func (r *endpointResource) updateEndpointSubscriptionState(
 			continue
 		}
 
-		if !asb.IsSubscriptionFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+		if !asb.IsAsbSubscriptionRuleCorrect(azureSubscription.Filter, *subscriptionFilterType, updatedState.SubscriptionFilterType.ValueString()) {
 			resp.Diagnostics.AddWarning(fmt.Sprintf("Cannot parse rule '%v' in Subscription %v for endpoint %v", azureSubscription.Filter, azureSubscription.Name, updatedState.EndpointName),
 				"This could indicate that someone manually added the rule it. It will be added to the state as is.",
 			)
 			updatedState.HasMalformedFilters = types.BoolValue(true)
 		}
 
-		tflog.Info(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionName))
-		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
+		tflog.Info(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionFilterType))
+		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionFilterType)
 	}
 
 	updatedState.Subscriptions = updatedSubscriptionState

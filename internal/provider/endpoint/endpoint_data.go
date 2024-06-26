@@ -46,10 +46,11 @@ func (d *endpointDataSource) Configure(_ context.Context, req datasource.Configu
 }
 
 type endpointDataSourceModel struct {
-	EndpointName  types.String                         `tfsdk:"endpoint_name"`
-	TopicName     types.String                         `tfsdk:"topic_name"`
-	Subscriptions []string                             `tfsdk:"subscriptions"`
-	QueueOptions  *endpointDataSourceQueueOptionsModel `tfsdk:"queue_options"`
+	EndpointName           types.String                         `tfsdk:"endpoint_name"`
+	TopicName              types.String                         `tfsdk:"topic_name"`
+	Subscriptions          []string                             `tfsdk:"subscriptions"`
+	SubscriptionFilterType types.String                         `tfsdk:"subscription_filter_type"`
+	QueueOptions           *endpointDataSourceQueueOptionsModel `tfsdk:"queue_options"`
 }
 
 type endpointDataSourceQueueOptionsModel struct {
@@ -80,6 +81,10 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Description: "A list of all subscriptions the endpoint has",
 				ElementType: types.StringType,
 			},
+			"subscription_filter_type": schema.StringAttribute{
+				Computed:    true,
+				Description: "The type of the subscription filter",
+			},
 			"queue_options": schema.SingleNestedAttribute{
 				Computed:    true,
 				Description: "The configuration used when creating any queues for that endpoint",
@@ -99,12 +104,13 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 	}
 }
 
-func (model endpointDataSourceModel) ToAsbModel() asb.EndpointModel {
-	return asb.EndpointModel{
-		EndpointName:  model.EndpointName.ValueString(),
-		TopicName:     model.TopicName.ValueString(),
-		Subscriptions: model.Subscriptions,
-		QueueOptions: asb.EndpointQueueOptions{
+func (model endpointDataSourceModel) ToAsbModel() asb.AsbEndpointModel {
+	return asb.AsbEndpointModel{
+		EndpointName:           model.EndpointName.ValueString(),
+		TopicName:              model.TopicName.ValueString(),
+		Subscriptions:          model.Subscriptions,
+		SubscriptionFilterType: model.SubscriptionFilterType.ValueString(),
+		QueueOptions: asb.AsbEndpointQueueOptions{
 			EnablePartitioning:        model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
 			MaxSizeInMegabytes:        to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
 			MaxMessageSizeInKilobytes: to.Ptr(model.QueueOptions.MaxMessageSizeInKilobytes.ValueInt64()),
@@ -119,7 +125,7 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	model := state.ToAsbModel()
 
-	subscriptions, err := d.client.GetEndpointSubscriptions(ctx, model)
+	subscriptions, err := d.client.GetAsbSubscriptionsRules(ctx, model)
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -131,10 +137,15 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	subscriptionNames := make([]string, 0, len(subscriptions))
 	for _, subscription := range subscriptions {
-		subscriptionNames = append(subscriptionNames, subscription.Name)
+		if subscription.FilterType == "sql" {
+			subscriptionNames = append(subscriptionNames, subscription.Name)
+		} else {
+			subscriptionNames = append(subscriptionNames, subscription.Filter)
+		}
 	}
 
 	state.Subscriptions = subscriptionNames
+	state.SubscriptionFilterType = types.StringValue(get_filter_type_from_subscriptions(subscriptions))
 
 	queue, err := d.client.GetEndpointQueue(ctx, model)
 	if err != nil {
@@ -162,4 +173,18 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+func get_filter_type_from_subscriptions(subscriptions []asb.AsbSubscriptionRule) string {
+	if len(subscriptions) == 0 {
+		return ""
+	}
+
+	// Check all values of the filter type are the same
+	for _, subscription := range subscriptions {
+		if subscription.FilterType != subscriptions[0].FilterType {
+			return ""
+		}
+	}
+	return subscriptions[0].FilterType
 }

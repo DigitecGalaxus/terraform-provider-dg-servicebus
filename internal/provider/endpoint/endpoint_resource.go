@@ -7,6 +7,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	az "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -49,11 +51,11 @@ func (r *endpointResource) Configure(_ context.Context, req resource.ConfigureRe
 	}
 }
 
-func (r *endpointResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *endpointResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_endpoint"
 }
 
-func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *endpointResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "The Endpoint resource allows consumers to create and manage an NServiceBus Endpoint. " +
 			"When initially creating the Endpoint, a default deny-all rule ensures that no invalid messages are received, before the configured subscription rules have been applied.",
@@ -77,6 +79,16 @@ func (r *endpointResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Required:    true,
 				ElementType: types.StringType,
 				Description: "The list of subscriptions to create on the endpoint.",
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(isValidCorrelationFilter()),
+				},
+			},
+			"subscription_filter_type": schema.StringAttribute{
+				Required:    true,
+				Description: "The type of filter to apply to the subscriptions.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("correlation", "sql"),
+				},
 			},
 			"additional_queues": schema.ListAttribute{
 				Optional:    true,
@@ -154,6 +166,7 @@ type endpointResourceModel struct {
 	EndpointName              types.String                      `tfsdk:"endpoint_name"`
 	TopicName                 types.String                      `tfsdk:"topic_name"`
 	Subscriptions             []string                          `tfsdk:"subscriptions"`
+	SubscriptionFilterType    types.String                      `tfsdk:"subscription_filter_type"`
 	AdditionalQueues          []string                          `tfsdk:"additional_queues"`
 	QueueOptions              endpointResourceQueueOptionsModel `tfsdk:"queue_options"`
 	QueueExists               types.Bool                        `tfsdk:"queue_exists"`
@@ -170,13 +183,13 @@ type endpointResourceQueueOptionsModel struct {
 	MaxMessageSizeInKilobytes types.Int64 `tfsdk:"max_message_size_in_kilobytes"`
 }
 
-func (model endpointResourceModel) ToAsbModel() asb.EndpointModel {
-	return asb.EndpointModel{
+func (model endpointResourceModel) ToAsbModel() asb.AsbEndpointModel {
+	return asb.AsbEndpointModel{
 		EndpointName:     model.EndpointName.ValueString(),
 		TopicName:        model.TopicName.ValueString(),
 		Subscriptions:    model.Subscriptions,
 		AdditionalQueues: model.AdditionalQueues,
-		QueueOptions: asb.EndpointQueueOptions{
+		QueueOptions: asb.AsbEndpointQueueOptions{
 			EnablePartitioning:        model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
 			MaxSizeInMegabytes:        to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
 			MaxMessageSizeInKilobytes: to.Ptr(model.QueueOptions.MaxMessageSizeInKilobytes.ValueInt64()),
