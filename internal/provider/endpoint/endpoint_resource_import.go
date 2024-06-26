@@ -29,7 +29,7 @@ func (r *endpointResource) ImportState(ctx context.Context, req resource.ImportS
 		return
 	}
 
-	model := asb.EndpointModel{TopicName: idParts[0], EndpointName: idParts[1]}
+	model := asb.AsbEndpointModel{TopicName: idParts[0], EndpointName: idParts[1]}
 
 	subscriptionNames := []string{}
 	if hasNonEmptySubscriptionArgument {
