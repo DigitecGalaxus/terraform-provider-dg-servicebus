@@ -12,4 +12,6 @@ clean:
 lint:
 	golangci-lint run
 testacc:
-	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m -count=1
+	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m -count=1 -parallel=5
+tfdocs-generate:
+	tfplugindocs generate --provider-name "dgservicebus"
