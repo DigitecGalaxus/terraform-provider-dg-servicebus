@@ -232,18 +232,22 @@ func (w *AsbClientWrapper) encodeAsbSubscriptionRuleNameFromFitlerValue(
 }
 
 func getRuleNameWithUniqueIdentifier(subscriptionName string) string {
-	replacer := strings.NewReplacer(",", "", " ", "_", "=", "_")
-	validSubscriptionName := replacer.Replace(subscriptionName)
-	if len(validSubscriptionName) <= MAX_RULE_NAME_LENGTH {
-		return validSubscriptionName
+	if len(subscriptionName) <= MAX_RULE_NAME_LENGTH {
+		return subscriptionName
 	}
 
-	identifier := getUniqueSubscriptionIdentifier(validSubscriptionName)
+	identifier := getUniqueSubscriptionIdentifier(subscriptionName)
 
 	// We try to ensure that the rule name is unique, but still traceable to the subscription name
 	ruleNameLength := MAX_RULE_NAME_LENGTH - len(identifier) - len(SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR)
-	croppedSubscriptionName := cropStringToLength(validSubscriptionName, ruleNameLength)
-	return croppedSubscriptionName + SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR + identifier
+	// If the subscription name contains an =, it is a correlation filter, and we should crop the class name
+	if strings.Contains(subscriptionName, "=") {
+		croppedSubscriptionName := cropCorrelationFilterStringToLength(subscriptionName, ruleNameLength)
+		return croppedSubscriptionName + SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR + identifier
+	} else {
+		croppedSubscriptionName := cropSqlFilterStringToLength(subscriptionName, ruleNameLength)
+		return croppedSubscriptionName + SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR + identifier
+	}
 }
 
 func getUniqueSubscriptionIdentifier(subscriptionName string) string {
@@ -257,7 +261,7 @@ func getUniqueSubscriptionIdentifier(subscriptionName string) string {
 	return base64.RawURLEncoding.EncodeToString(identifierHash)
 }
 
-func cropStringToLength(subscriptionName string, length int) string {
+func cropSqlFilterStringToLength(subscriptionName string, length int) string {
 	if len(subscriptionName) < length {
 		return subscriptionName
 	}
@@ -268,6 +272,13 @@ func cropStringToLength(subscriptionName string, length int) string {
 	}
 
 	return subscriptionName[len(subscriptionName)-length:]
+}
+
+func cropCorrelationFilterStringToLength(subscriptionName string, length int) string {
+	// The subscription name is in the format "classFullName, assemblyName, version=1.0.0.0, culture=neutral, publicKeyToken=null"
+	classFullName := strings.Split(subscriptionName, ",")[0]
+
+	return cropSqlFilterStringToLength(classFullName, length)
 }
 
 func makeSubscriptionSqlRuleFilter(subscriptionFilterValue string) string {
