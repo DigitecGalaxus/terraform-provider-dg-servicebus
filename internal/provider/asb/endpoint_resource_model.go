@@ -2,7 +2,7 @@ package asb
 
 const MAX_DELIVERY_COUNT = int32(2147483647)
 
-// Curren version
+// Current version.
 type AsbEndpointModel struct {
 	EndpointName     string
 	TopicName        string
@@ -23,7 +23,7 @@ type AsbEndpointQueueOptions struct {
 	MaxMessageSizeInKilobytes *int64
 }
 
-// Previous version
+// Previous version.
 type AsbEndpointModelV0 struct {
 	EndpointName     string
 	TopicName        string

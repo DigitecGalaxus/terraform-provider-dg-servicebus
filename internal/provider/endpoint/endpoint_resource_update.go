@@ -109,7 +109,7 @@ func (r *endpointResource) UpdateSubscriptions(
 		if rule.FilterType != planSubscription.FilterType.ValueString() {
 			// Rule exists, update it
 			tflog.Info(ctx, fmt.Sprintf("Updating subscription function filter type %s", planSubscription))
-			r.client.UpdateAsbSubscriptionRule(ctx, planModel, planSubscription.ToAsbModel())
+			err := r.client.UpdateAsbSubscriptionRule(ctx, planModel, planSubscription.ToAsbModel())
 			return err
 		}
 

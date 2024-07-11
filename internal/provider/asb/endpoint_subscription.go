@@ -61,23 +61,31 @@ func (w *AsbClientWrapper) GetAsbSubscriptionsRules(
 }
 
 func convertToAsbSubscriptionRule(rule az.RuleProperties) (*AsbSubscriptionRule, error) {
-	if _, ok := rule.Filter.(*az.CorrelationFilter); ok {
+	if ruleFilter, ok := rule.Filter.(*az.CorrelationFilter); ok {
+		ruleFilterValus, ok := ruleFilter.ApplicationProperties[CORRELATIONFILTER_HEADER].(string)
+		if !ok {
+			return nil, fmt.Errorf("rule filter could not be converted to string")
+		}
+
 		return &AsbSubscriptionRule{
 			Name:       rule.Name,
-			Filter:     rule.Filter.(*az.CorrelationFilter).ApplicationProperties[CORRELATIONFILTER_HEADER].(string),
+			Filter:     ruleFilterValus,
 			FilterType: "correlation",
 		}, nil
 	}
 
-	if _, ok := rule.Filter.(*az.SQLFilter); ok {
+	if ruleFilter, ok := rule.Filter.(*az.SQLFilter); ok {
+		if !ok {
+			return nil, fmt.Errorf("rule filter could not be converted to string")
+		}
 		return &AsbSubscriptionRule{
 			Name:       rule.Name,
-			Filter:     rule.Filter.(*az.SQLFilter).Expression,
+			Filter:     ruleFilter.Expression,
 			FilterType: "sql",
 		}, nil
 	}
 
-	return nil, fmt.Errorf("Invalid subscription filter type")
+	return nil, fmt.Errorf("invalid subscription filter type")
 }
 
 func (w *AsbClientWrapper) CreateAsbSubscriptionRule(
