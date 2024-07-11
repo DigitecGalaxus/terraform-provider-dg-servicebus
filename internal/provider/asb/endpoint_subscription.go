@@ -24,7 +24,7 @@ const MAX_RULE_NAME_LENGTH = 50
 const SHA_1_BYTE_LENGTH = 20
 const SUBSCRIPTION_NAME_IDENTIFIER_LENGTH = SHA_1_BYTE_LENGTH / 2
 const SUBSCRIPTION_NAME_IDENTIFIER_SEPARATOR = "--"
-const CORRELATIONFILTER_HEADER = "Dg.MessageTypeFullname"
+const CORRELATIONFILTER_HEADER = "Dg.MessageTypeFullName"
 
 func (w *AsbClientWrapper) GetAsbSubscriptionsRules(
 	ctx context.Context,
