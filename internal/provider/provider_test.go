@@ -57,23 +57,20 @@ func createClient(t *testing.T) asb.AsbClientWrapper {
 }
 
 func TestAcc_TestCreateEndpoint(t *testing.T) {
-	var client = createClient(t)
-
+	// Init test test resources
+	var uuid string = acctest.RandString(10)
 	sqlFilterCases := map[string]string{
 		"sql":         "Dg.Test.V1.Subscription",
 		"correlation": "Dg.Test.V1.Subscription",
 	}
+	testSteps := []resource.TestStep{}
 
 	for filterType, filterValue := range sqlFilterCases {
-		var uuid string = acctest.RandString(10)
-		endpoint_name := fmt.Sprintf("%v-test-create-endpoint", uuid)
-		additional_queue := fmt.Sprintf("%v-additional-create-queue", uuid)
+		endpoint_name := fmt.Sprintf("%v-%v-test-create-endpoint", uuid, filterType)
+		additional_queue := fmt.Sprintf("%v-%v-additional-create-queue", uuid, filterType)
 
-		resource.Test(t, resource.TestCase{
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: providerConfig + fmt.Sprintf(`
+		testSteps = append(testSteps, resource.TestStep{
+			Config: providerConfig + fmt.Sprintf(`
 					resource "dgservicebus_endpoint" "test" {
 						endpoint_name = "%v"
 						topic_name    = "bundle-1"
@@ -90,31 +87,42 @@ func TestAcc_TestCreateEndpoint(t *testing.T) {
 						max_message_size_in_kilobytes = 256
 						}
 					}`, endpoint_name, filterValue, filterType, additional_queue),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "1"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter", filterValue),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter_type", filterType),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "additional_queues.#", "1"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "additional_queues.0", additional_queue),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_exists", "true"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", endpoint_name),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_exists", "true"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "5120"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_message_size_in_kilobytes", "256"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_endpoint", "false"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_queue", "false"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_update_subscriptions", "false"),
-						resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "topic_name", "bundle-1"),
-					),
-				},
-			},
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "1"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter", filterValue),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter_type", filterType),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "additional_queues.#", "1"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "additional_queues.0", additional_queue),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_exists", "true"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", endpoint_name),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_exists", "true"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.enable_partitioning", "true"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_size_in_megabytes", "5120"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_options.max_message_size_in_kilobytes", "256"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_endpoint", "false"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_create_queue", "false"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "should_update_subscriptions", "false"),
+				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "topic_name", "bundle-1"),
+			),
 		})
+
+	}
+
+	// Run tests
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps:                    testSteps,
+	})
+
+	// Clean up test resources
+	var client = createClient(t)
+	for filterType := range sqlFilterCases {
+		endpoint_name := fmt.Sprintf("%v-%v-test-create-endpoint", uuid, filterType)
+		additional_queue := fmt.Sprintf("%v-%v-additional-create-queue", uuid, filterType)
 
 		ensure_enpoint_deleted(client, endpoint_name)
 		ensure_enpoint_deleted(client, additional_queue)
 	}
-
 }
 
 func TestAcc_EndpointTakeover(t *testing.T) {
@@ -427,7 +435,7 @@ func TestAcc_EndpointSqlCorrelationUpdate(t *testing.T) {
 func TestAcc_EndpointStateUpgrader(t *testing.T) {
 	endpoint_name := acctest.RandString(10) + "-test-endpoint"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				ExternalProviders: map[string]resource.ExternalProvider{

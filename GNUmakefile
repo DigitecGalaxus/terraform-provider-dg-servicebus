@@ -21,13 +21,11 @@ lint:
 
 # Run acceptance tests with Terraform
 testacc:
-	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m -count=1 -parallel=5
+	TF_ACC=1 go test -timeout 120m -count=1 -parallel=5 -v -cover ./internal/provider/
 
 # Generate Terraform provider documentation
 tfdocs-generate:
+	export GOBIN=$$PWD/bin && \
+	export PATH=$$GOBIN:$$PATH && \
+	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest && \
 	tfplugindocs generate --provider-name "dgservicebus"
-
-tfdocs-install:
-	export GOBIN=$PWD/bin
-	export PATH=$GOBIN:$PATH
-	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
