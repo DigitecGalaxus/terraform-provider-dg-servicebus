@@ -35,7 +35,7 @@ func NewSchemaV1() schema.Schema {
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"subscriptions": schema.ListNestedAttribute{
+			"subscriptions": schema.SetNestedAttribute{
 				Required: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{

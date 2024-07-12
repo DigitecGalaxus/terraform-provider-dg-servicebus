@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
 	"terraform-provider-dg-servicebus/internal/provider/asb"
@@ -320,6 +321,148 @@ func TestAcc_EndpointDataSourceTest(t *testing.T) {
 	ensure_enpoint_deleted(client, endpoint_correlation_no_subscription_name)
 	ensure_enpoint_deleted(client, endpoint_sql_with_subcription_name)
 	ensure_enpoint_deleted(client, endpoint_correlation_with_subcription_name)
+}
+
+func TestAcc_EndpointSubscriptionOrderChanges(t *testing.T) {
+	client := createClient(t)
+
+	endpoint_name := acctest.RandString(10) + "-test-ordes-endpoint"
+	subscriptionFilterValue1 := "Dg.Test.Subscription.V1"
+	subscriptionFilterValue2 := "Dg.Test.Subscription.V2"
+	subscriptionFilterValue3 := "Dg.Test.Subscription.V3"
+	subscriptionFilterValue4 := "Dg.Test.Subscription.V4"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			//Create resource with 3 subscriptions
+			{
+				Config: providerConfig + fmt.Sprintf(`
+					resource "dgservicebus_endpoint" "test" {
+						endpoint_name = "%v"
+						topic_name    = "bundle-1"
+						subscriptions = [
+							{filter = "%v", filter_type = "sql"},
+							{filter = "%v", filter_type = "sql"},
+							{filter = "%v", filter_type = "sql"}
+						]
+
+						queue_options = {
+						enable_partitioning   = true,
+						max_size_in_megabytes = 5120,
+						max_message_size_in_kilobytes = 256
+						}
+					}`, endpoint_name, subscriptionFilterValue1, subscriptionFilterValue2, subscriptionFilterValue3),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "3"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter", subscriptionFilterValue1),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.1.filter", subscriptionFilterValue2),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.2.filter", subscriptionFilterValue3),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", endpoint_name),
+				),
+			},
+			// Change order of subscriptions
+			{
+				Config: providerConfig + fmt.Sprintf(`
+				resource "dgservicebus_endpoint" "test" {
+					endpoint_name = "%v"
+					topic_name    = "bundle-1"
+					subscriptions = [
+						{filter = "%v", filter_type = "sql"},
+						{filter = "%v", filter_type = "sql"},
+						{filter = "%v", filter_type = "sql"}
+					]
+
+					queue_options = {
+					enable_partitioning   = true,
+					max_size_in_megabytes = 5120,
+					max_message_size_in_kilobytes = 256
+					}
+				}`, endpoint_name, subscriptionFilterValue3, subscriptionFilterValue1, subscriptionFilterValue2),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "3"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter", subscriptionFilterValue1),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.1.filter", subscriptionFilterValue2),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.2.filter", subscriptionFilterValue3),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", endpoint_name),
+					func(s *terraform.State) error {
+						subscriptions, _ := client.GetAsbSubscriptionsRules(context.Background(), asb.AsbEndpointModel{
+							EndpointName: endpoint_name,
+							TopicName:    "bundle-1",
+						})
+						if len(subscriptions) != 3 {
+							return fmt.Errorf("Expected 3 subscriptions")
+						}
+						contains := func(subscriptions []asb.AsbSubscriptionRule, filter string) bool {
+							for _, subscription := range subscriptions {
+								if strings.Contains(subscription.Filter, filter) {
+									return true
+								}
+							}
+							return false
+						}
+
+						if !contains(subscriptions, subscriptionFilterValue1) || !contains(subscriptions, subscriptionFilterValue2) || !contains(subscriptions, subscriptionFilterValue3) {
+							return fmt.Errorf("Expected subscriptions to contain %v, %v, %v", subscriptionFilterValue1, subscriptionFilterValue2, subscriptionFilterValue3)
+						}
+
+						return nil
+					},
+				),
+			},
+			// Add new subscription, remove one
+			{
+				Config: providerConfig + fmt.Sprintf(`
+				resource "dgservicebus_endpoint" "test" {
+					endpoint_name = "%v"
+					topic_name    = "bundle-1"
+					subscriptions = [
+						{filter = "%v", filter_type = "sql"},
+						{filter = "%v", filter_type = "sql"},
+						{filter = "%v", filter_type = "sql"}
+					]
+
+					queue_options = {
+					enable_partitioning   = true,
+					max_size_in_megabytes = 5120,
+					max_message_size_in_kilobytes = 256
+					}
+				}`, endpoint_name, subscriptionFilterValue3, subscriptionFilterValue2, subscriptionFilterValue4),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "3"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter", subscriptionFilterValue2),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.1.filter", subscriptionFilterValue3),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.2.filter", subscriptionFilterValue4),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", endpoint_name),
+					func(s *terraform.State) error {
+						subscriptions, _ := client.GetAsbSubscriptionsRules(context.Background(), asb.AsbEndpointModel{
+							EndpointName: endpoint_name,
+							TopicName:    "bundle-1",
+						})
+						if len(subscriptions) != 3 {
+							return fmt.Errorf("Expected 3 subscriptions")
+						}
+						contains := func(subscriptions []asb.AsbSubscriptionRule, filter string) bool {
+							for _, subscription := range subscriptions {
+								if strings.Contains(subscription.Filter, filter) {
+									return true
+								}
+							}
+							return false
+						}
+
+						if !contains(subscriptions, subscriptionFilterValue2) || !contains(subscriptions, subscriptionFilterValue3) || !contains(subscriptions, subscriptionFilterValue4) {
+							return fmt.Errorf("Expected subscriptions to contain %v, %v, %v", subscriptionFilterValue2, subscriptionFilterValue3, subscriptionFilterValue4)
+						}
+
+						return nil
+					},
+				),
+			},
+		},
+	})
+
+	ensure_enpoint_deleted(client, endpoint_name)
 }
 
 func TestAcc_EndpointSqlCorrelationUpdate(t *testing.T) {

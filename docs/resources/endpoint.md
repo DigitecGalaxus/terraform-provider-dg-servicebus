@@ -36,7 +36,7 @@ resource "dgservicebus_endpoint" "example" {
 
 - `endpoint_name` (String) The name of the endpoint to create.
 - `queue_options` (Attributes) The options for the queue, which is created for the endpoint. (see [below for nested schema](#nestedatt--queue_options))
-- `subscriptions` (Attributes List) (see [below for nested schema](#nestedatt--subscriptions))
+- `subscriptions` (Attributes Set) (see [below for nested schema](#nestedatt--subscriptions))
 - `topic_name` (String) The name of the topic to create the endpoint on.
 
 ### Optional
