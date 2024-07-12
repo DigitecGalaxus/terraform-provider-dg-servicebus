@@ -78,10 +78,6 @@ func (r *endpointResource) UpdateSubscriptions(
 	resp *resource.UpdateResponse,
 ) error {
 	planModel := plan.ToAsbModel()
-
-	// tflog.Info(ctx, fmt.Sprintf("Previous state: %s", strings.Join(previousState.Subscriptions, ", ")))
-	// tflog.Info(ctx, fmt.Sprintf("Plan: %s", strings.Join(plan.Subscriptions, ", ")))
-
 	// This is deliberately done in this order, such that if subscriptions are replaced,
 	// the new subscriptions are created before the old ones are deleted, thus avoiding
 	// the Endpoint missing events for a short period of time.
@@ -104,6 +100,8 @@ func (r *endpointResource) UpdateSubscriptions(
 			if err == nil {
 				continue
 			}
+
+			return err
 		}
 
 		if rule.FilterType != planSubscription.FilterType.ValueString() {

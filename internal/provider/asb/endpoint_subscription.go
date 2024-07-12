@@ -62,14 +62,14 @@ func (w *AsbClientWrapper) GetAsbSubscriptionsRules(
 
 func convertToAsbSubscriptionRule(rule az.RuleProperties) (*AsbSubscriptionRule, error) {
 	if ruleFilter, ok := rule.Filter.(*az.CorrelationFilter); ok {
-		ruleFilterValus, ok := ruleFilter.ApplicationProperties[CORRELATIONFILTER_HEADER].(string)
+		ruleFilterValue, ok := ruleFilter.ApplicationProperties[CORRELATIONFILTER_HEADER].(string)
 		if !ok {
 			return nil, fmt.Errorf("rule filter could not be converted to string")
 		}
 
 		return &AsbSubscriptionRule{
 			Name:       rule.Name,
-			Filter:     ruleFilterValus,
+			Filter:     ruleFilterValue,
 			FilterType: "correlation",
 		}, nil
 	}

@@ -22,8 +22,8 @@ resource "dgservicebus_endpoint" "example" {
     "Dg.SalesOrder.V1.AAA",
   ]
   queue_options = {
-    enable_partitioning   = false,
-    max_size_in_megabytes = 5120,
+    enable_partitioning           = false,
+    max_size_in_megabytes         = 5120,
     max_message_size_in_kilobytes = 256,
   }
 }
