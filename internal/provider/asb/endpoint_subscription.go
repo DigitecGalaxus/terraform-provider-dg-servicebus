@@ -131,7 +131,7 @@ func (w *AsbClientWrapper) GetAsbSubscriptionRule(
 	model AsbEndpointModel,
 	subscriptionRuleValue string,
 ) (*AsbSubscriptionRule, error) {
-	tflog.Info(ctx, "Checking if subscription rule "+subscriptionRuleValue+" exists")
+	tflog.Info(ctx, "Get the subscription rule "+subscriptionRuleValue)
 	rule, err := w.Client.GetRule(
 		ctx,
 		model.TopicName,
@@ -142,6 +142,10 @@ func (w *AsbClientWrapper) GetAsbSubscriptionRule(
 
 	if err != nil {
 		return nil, err
+	}
+
+	if rule == nil {
+		return nil, fmt.Errorf("rule not found")
 	}
 
 	return convertToAsbSubscriptionRule(rule.RuleProperties)

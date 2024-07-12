@@ -67,7 +67,6 @@ func TestAcc_TestCreateEndpoint(t *testing.T) {
 
 	for filterType, filterValue := range sqlFilterCases {
 		endpoint_name := fmt.Sprintf("%v-%v-test-create-endpoint", uuid, filterType)
-		additional_queue := fmt.Sprintf("%v-%v-additional-create-queue", uuid, filterType)
 
 		testSteps = append(testSteps, resource.TestStep{
 			Config: providerConfig + fmt.Sprintf(`
@@ -77,22 +76,17 @@ func TestAcc_TestCreateEndpoint(t *testing.T) {
 						subscriptions = [
 							{filter = "%v", filter_type = "%v"}
 						]
-						additional_queues = [
-							"%v"
-						]
 
 						queue_options = {
 						enable_partitioning   = true,
 						max_size_in_megabytes = 5120,
 						max_message_size_in_kilobytes = 256
 						}
-					}`, endpoint_name, filterValue, filterType, additional_queue),
+					}`, endpoint_name, filterValue, filterType),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.#", "1"),
 				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter", filterValue),
 				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "subscriptions.0.filter_type", filterType),
-				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "additional_queues.#", "1"),
-				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "additional_queues.0", additional_queue),
 				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_exists", "true"),
 				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "endpoint_name", endpoint_name),
 				resource.TestCheckResourceAttr("dgservicebus_endpoint.test", "queue_exists", "true"),
@@ -118,10 +112,8 @@ func TestAcc_TestCreateEndpoint(t *testing.T) {
 	var client = createClient(t)
 	for filterType := range sqlFilterCases {
 		endpoint_name := fmt.Sprintf("%v-%v-test-create-endpoint", uuid, filterType)
-		additional_queue := fmt.Sprintf("%v-%v-additional-create-queue", uuid, filterType)
 
 		ensure_enpoint_deleted(client, endpoint_name)
-		ensure_enpoint_deleted(client, additional_queue)
 	}
 }
 
@@ -337,6 +329,7 @@ func TestAcc_EndpointSqlCorrelationUpdate(t *testing.T) {
 
 	endpoint_name := fmt.Sprintf("%v-test-sql2correlation-endpoint", uuid)
 	subscriptionFilterValue := "Dg.Test.Subscription.V1"
+	subscriptionFilterValueChanged := "Dg.Test.Subscription.V2"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -390,7 +383,7 @@ func TestAcc_EndpointSqlCorrelationUpdate(t *testing.T) {
 					endpoint_name = "%v"
 					topic_name	= "bundle-1"
 					subscriptions = [
-						{filter: "%v", filter_type: "correlation"}
+						{filter: "%v.Test", filter_type: "correlation"}
 					]
 
 					queue_options = {
@@ -402,7 +395,7 @@ func TestAcc_EndpointSqlCorrelationUpdate(t *testing.T) {
 				`, endpoint_name, subscriptionFilterValue),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.#", "1"),
-					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.0.filter", subscriptionFilterValue),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.0.filter", fmt.Sprintf("%v.Test", subscriptionFilterValue)),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.0.filter_type", "correlation"),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "endpoint_name", endpoint_name),
 					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "topic_name", "bundle-1"),
@@ -420,6 +413,48 @@ func TestAcc_EndpointSqlCorrelationUpdate(t *testing.T) {
 
 						if subscriptions[0].FilterType != "correlation" {
 							return fmt.Errorf("Expected correlation filter type")
+						}
+
+						return nil
+					},
+				),
+			},
+			{
+				Config: providerConfig + fmt.Sprintf(`
+				resource "dgservicebus_endpoint" "sql2correlation" {
+					endpoint_name = "%v"
+					topic_name	= "bundle-1"
+					subscriptions = [
+						{filter: "%v", filter_type: "sql"}
+					]
+
+					queue_options = {
+						enable_partitioning   = true,
+						max_size_in_megabytes = 5120,
+						max_message_size_in_kilobytes = 256
+					}
+				}
+				`, endpoint_name, subscriptionFilterValueChanged),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.#", "1"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.0.filter", subscriptionFilterValueChanged),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "subscriptions.0.filter_type", "sql"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "endpoint_name", endpoint_name),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "topic_name", "bundle-1"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "queue_options.enable_partitioning", "true"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "queue_options.max_size_in_megabytes", "5120"),
+					resource.TestCheckResourceAttr("dgservicebus_endpoint.sql2correlation", "queue_options.max_message_size_in_kilobytes", "256"),
+					func(s *terraform.State) error {
+						subscriptions, _ := client.GetAsbSubscriptionsRules(context.Background(), asb.AsbEndpointModel{
+							EndpointName: endpoint_name,
+							TopicName:    "bundle-1",
+						})
+						if len(subscriptions) != 1 {
+							return fmt.Errorf("Expected 1 subscription")
+						}
+
+						if subscriptions[0].FilterType != "sql" {
+							return fmt.Errorf("Expected sql filter type")
 						}
 
 						return nil
