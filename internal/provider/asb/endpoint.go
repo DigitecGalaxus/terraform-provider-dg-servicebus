@@ -9,20 +9,38 @@ import (
 
 func (w *AsbClientWrapper) CreateEndpointWithDefaultRule(
 	azureContext context.Context,
-	model EndpointModel,
+	model AsbEndpointModel,
 ) error {
-	queueName, err := w.GetFullyQualifiedName(azureContext, model.EndpointName)
-	if err != nil {
-		return err
+	return w.CreateEndpointWithDefaultRuleWithOptinalForwading(
+		azureContext,
+		model,
+		false,
+	)
+}
+
+func (w *AsbClientWrapper) CreateEndpointWithDefaultRuleWithOptinalForwading(
+	azureContext context.Context,
+	model AsbEndpointModel,
+	disableForward bool,
+) error {
+	var queueNamePtr *string
+	if !disableForward {
+		queueName, err := w.GetFullyQualifiedName(azureContext, model.EndpointName)
+		if err != nil {
+			return err
+		}
+		queueNamePtr = to.Ptr(queueName)
+	} else {
+		queueNamePtr = nil
 	}
 
-	_, err = w.Client.CreateSubscription(
+	_, err := w.Client.CreateSubscription(
 		azureContext,
 		model.TopicName,
 		model.EndpointName,
 		&az.CreateSubscriptionOptions{
 			Properties: &az.SubscriptionProperties{
-				ForwardTo:                        to.Ptr(queueName),
+				ForwardTo:                        queueNamePtr,
 				MaxDeliveryCount:                 to.Ptr(MAX_DELIVERY_COUNT),
 				EnableBatchedOperations:          to.Ptr(true),
 				LockDuration:                     to.Ptr("PT5M"),
@@ -40,7 +58,7 @@ func (w *AsbClientWrapper) CreateEndpointWithDefaultRule(
 
 func (w *AsbClientWrapper) DeleteEndpoint(
 	azureContext context.Context,
-	model EndpointModel,
+	model AsbEndpointModel,
 ) error {
 	_, err := w.Client.DeleteSubscription(
 		azureContext,
@@ -52,7 +70,7 @@ func (w *AsbClientWrapper) DeleteEndpoint(
 	return err
 }
 
-func (w *AsbClientWrapper) EndpointExists(ctx context.Context, model EndpointModel) (bool, error) {
+func (w *AsbClientWrapper) EndpointExists(ctx context.Context, model AsbEndpointModel) (bool, error) {
 	subscription, err := w.Client.GetSubscription(ctx, model.TopicName, model.EndpointName, nil)
 	if err != nil {
 		return false, err

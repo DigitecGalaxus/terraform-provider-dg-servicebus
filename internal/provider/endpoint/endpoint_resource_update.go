@@ -3,7 +3,6 @@ package endpoint
 import (
 	"context"
 	"fmt"
-	"strings"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -59,7 +58,7 @@ func (r *endpointResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	if plan.ShouldUpdateSubscriptions.ValueBool() {
-		err := r.updateMalformedSubscriptions(ctx, previousState, plan)
+		err := r.updateMalformedSubscriptions(ctx, plan)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating subscriptions",
@@ -79,55 +78,64 @@ func (r *endpointResource) UpdateSubscriptions(
 	resp *resource.UpdateResponse,
 ) error {
 	planModel := plan.ToAsbModel()
-
-	tflog.Info(ctx, fmt.Sprintf("Previous state: %s", strings.Join(previousState.Subscriptions, ", ")))
-	tflog.Info(ctx, fmt.Sprintf("Plan: %s", strings.Join(plan.Subscriptions, ", ")))
-
 	// This is deliberately done in this order, such that if subscriptions are replaced,
 	// the new subscriptions are created before the old ones are deleted, thus avoiding
 	// the Endpoint missing events for a short period of time.
+
+	// Create subscriptions that are not in the previous state
 	for _, planSubscription := range plan.Subscriptions {
 		tflog.Info(ctx, fmt.Sprintf("Checking subscription create %s", planSubscription))
-		shouldBeCreated := !slices.Contains(previousState.Subscriptions, planSubscription)
-		if !shouldBeCreated {
+		hasChanged := !slices.Contains(previousState.Subscriptions, planSubscription)
+		if !hasChanged {
 			// Exists and should stay like that
 			continue
 		}
 
 		tflog.Info(ctx, fmt.Sprintf("Checking subscription exists %s", planSubscription))
-		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, planSubscription)
-		if subscriptionExists {
-			resp.Diagnostics.AddWarning(
-				fmt.Sprintf("Subscription %v rule already exists", planSubscription),
-				"This suggests that the subscription rule may have been created manually. We just add it to the state.",
-			)
-			continue
+		// Rule does not exist, create it
+		rule, err := r.client.GetAsbSubscriptionRule(ctx, planModel, planSubscription.Filter.ValueString())
+		if err != nil {
+			tflog.Info(ctx, fmt.Sprintf("Creating subscription %s", planSubscription))
+			err := r.client.CreateAsbSubscriptionRule(ctx, planModel, planSubscription.ToAsbModel())
+			if err == nil {
+				continue
+			}
+
+			return err
 		}
 
-		tflog.Info(ctx, fmt.Sprintf("Creating subscription %s", planSubscription))
-		err := r.client.CreateEndpointSubscription(ctx, planModel, planSubscription)
-		if err == nil {
-			continue
+		if rule.FilterType != planSubscription.FilterType.ValueString() {
+			// Rule exists, update it
+			tflog.Info(ctx, fmt.Sprintf("Updating subscription function filter type %s", planSubscription))
+			err := r.client.UpdateAsbSubscriptionRule(ctx, planModel, planSubscription.ToAsbModel())
+			return err
 		}
 
-		return err
+		tflog.Error(ctx, "Subscription already exists and nothing changed. This should not happen.")
+	}
+
+	// Delete subscriptions that are not in the plan
+	planSubscriptionFilterValues := []string{}
+	for _, subscription := range plan.Subscriptions {
+		planSubscriptionFilterValues = append(planSubscriptionFilterValues, subscription.Filter.ValueString())
 	}
 
 	for _, previousSubscription := range previousState.Subscriptions {
 		tflog.Info(ctx, fmt.Sprintf("Checking subscription delete %s", previousSubscription))
-		shouldBeDeleted := !slices.Contains(plan.Subscriptions, previousSubscription)
+		// The rule name is created from the filter value, so we can use it to check if the rule exists
+		shouldBeDeleted := !slices.Contains(planSubscriptionFilterValues, previousSubscription.Filter.ValueString())
 		if !shouldBeDeleted {
 			continue
 		}
 
 		tflog.Info(ctx, fmt.Sprintf("Deleting subscription %s", previousSubscription))
-		err := r.client.DeleteEndpointSubscription(ctx, planModel, previousSubscription)
+		err := r.client.DeleteAsbSubscriptionRule(ctx, planModel, previousSubscription.ToAsbModel())
 		if err != nil {
 			return err
 		}
 
-		subscriptionExists := r.client.EndpointSubscriptionExists(ctx, planModel, previousSubscription)
-		if !subscriptionExists {
+		_, err = r.client.GetAsbSubscriptionRule(ctx, planModel, previousSubscription.Filter.ValueString())
+		if err != nil {
 			// Deals with an edge case where the subscription was not correctly identified
 			// by the read operation, due to a failed update before this one.
 			tflog.Info(ctx, fmt.Sprintf(
@@ -145,32 +153,37 @@ func (r *endpointResource) UpdateSubscriptions(
 
 func (r *endpointResource) updateMalformedSubscriptions(
 	ctx context.Context,
-	state endpointResourceModel,
 	plan endpointResourceModel,
 ) error {
-	azureSubscription, err := r.client.GetEndpointSubscriptions(ctx, plan.ToAsbModel())
+	azureSubscription, err := r.client.GetAsbSubscriptionsRules(ctx, plan.ToAsbModel())
 	if err != nil {
 		return err
 	}
 
+	plannedSubscriptions := []string{}
+	for _, subscription := range plan.Subscriptions {
+		plannedSubscriptions = append(plannedSubscriptions, subscription.Filter.ValueString())
+	}
+
 	for _, subscription := range azureSubscription {
 		tflog.Info(ctx, fmt.Sprintf("Checking subscription update %s", subscription.Name))
-		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(state.Subscriptions, subscription.Name)
-		if subscriptionName == nil {
-			tflog.Info(ctx, fmt.Sprintf("Subscription %s is not managed by Terraform", subscription.Name))
-			// Subscription is not (yet) managed by Terraform
-			// This likely happens when the subscription was created in this update run,
-			// and the previous state does not contain it yet.
+
+		index := asb.GetSubscriptionFilterValueForAsbRuleName(plannedSubscriptions, subscription)
+		if index < 0 {
+			// This most likely means that the subscription will be deleted
+			tflog.Info(ctx, fmt.Sprintf("Subscription %s not found in plan", subscription.Name))
 			continue
 		}
 
-		if asb.IsSubscriptionFilterCorrect(subscription.Filter, *subscriptionName) {
+		plannedSubscription := plan.Subscriptions[index]
+
+		if asb.IsAsbSubscriptionRuleCorrect(subscription, plannedSubscription.ToAsbModel()) {
 			tflog.Info(ctx, fmt.Sprintf("Subscription %s is correct", subscription.Name))
 			continue
 		}
 
-		tflog.Info(ctx, fmt.Sprintf("Subscription %s is incorrect", subscription.Name))
-		err := r.client.EnsureEndpointSubscriptionFilterCorrect(ctx, plan.ToAsbModel(), *subscriptionName)
+		tflog.Info(ctx, fmt.Sprintf("Subscription %s is incorrect. Updating.", subscription.Name))
+		err := r.client.UpdateAsbSubscriptionRule(ctx, plan.ToAsbModel(), plannedSubscription.ToAsbModel())
 		if err != nil {
 			return err
 		}

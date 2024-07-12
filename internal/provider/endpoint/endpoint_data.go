@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"terraform-provider-dg-servicebus/internal/provider/asb"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -46,10 +48,22 @@ func (d *endpointDataSource) Configure(_ context.Context, req datasource.Configu
 }
 
 type endpointDataSourceModel struct {
-	EndpointName  types.String                         `tfsdk:"endpoint_name"`
-	TopicName     types.String                         `tfsdk:"topic_name"`
-	Subscriptions []string                             `tfsdk:"subscriptions"`
-	QueueOptions  *endpointDataSourceQueueOptionsModel `tfsdk:"queue_options"`
+	EndpointName  types.String                          `tfsdk:"endpoint_name"`
+	TopicName     types.String                          `tfsdk:"topic_name"`
+	Subscriptions []endpointDataSourceSubscriptionModel `tfsdk:"subscriptions"`
+	QueueOptions  *endpointDataSourceQueueOptionsModel  `tfsdk:"queue_options"`
+}
+
+type endpointDataSourceSubscriptionModel struct {
+	Filter     types.String `tfsdk:"filter"`
+	FilterType types.String `tfsdk:"filter_type"`
+}
+
+func (d *endpointDataSourceSubscriptionModel) ToAsbModel() asb.AsbSubscriptionModel {
+	return asb.AsbSubscriptionModel{
+		Filter:     d.Filter.ValueString(),
+		FilterType: d.FilterType.ValueString(),
+	}
 }
 
 type endpointDataSourceQueueOptionsModel struct {
@@ -75,10 +89,20 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Required:    true,
 				Description: "The name of the topic, in which the endpoint is created",
 			},
-			"subscriptions": schema.ListAttribute{
-				Computed:    true,
-				Description: "A list of all subscriptions the endpoint has",
-				ElementType: types.StringType,
+			"subscriptions": schema.ListNestedAttribute{
+				Computed: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"filter": schema.StringAttribute{
+							Computed:    true,
+							Description: "The filter for the subscription.",
+						},
+						"filter_type": schema.StringAttribute{
+							Computed:    true,
+							Description: "The filter type for the subscription.",
+						},
+					},
+				},
 			},
 			"queue_options": schema.SingleNestedAttribute{
 				Computed:    true,
@@ -99,12 +123,18 @@ func (d *endpointDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 	}
 }
 
-func (model endpointDataSourceModel) ToAsbModel() asb.EndpointModel {
-	return asb.EndpointModel{
+func (model endpointDataSourceModel) ToAsbModel() asb.AsbEndpointModel {
+
+	subscriptions := make([]asb.AsbSubscriptionModel, 0, len(model.Subscriptions))
+	for _, subscription := range model.Subscriptions {
+		subscriptions = append(subscriptions, subscription.ToAsbModel())
+	}
+
+	return asb.AsbEndpointModel{
 		EndpointName:  model.EndpointName.ValueString(),
 		TopicName:     model.TopicName.ValueString(),
-		Subscriptions: model.Subscriptions,
-		QueueOptions: asb.EndpointQueueOptions{
+		Subscriptions: subscriptions,
+		QueueOptions: asb.AsbEndpointQueueOptions{
 			EnablePartitioning:        model.QueueOptions.EnablePartitioning.ValueBoolPointer(),
 			MaxSizeInMegabytes:        to.Ptr(int32(model.QueueOptions.MaxSizeInMegabytes.ValueInt64())),
 			MaxMessageSizeInKilobytes: to.Ptr(model.QueueOptions.MaxMessageSizeInKilobytes.ValueInt64()),
@@ -119,7 +149,7 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	model := state.ToAsbModel()
 
-	subscriptions, err := d.client.GetEndpointSubscriptions(ctx, model)
+	asbSubscriptions, err := d.client.GetAsbSubscriptionsRules(ctx, model)
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -129,12 +159,15 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	subscriptionNames := make([]string, 0, len(subscriptions))
-	for _, subscription := range subscriptions {
-		subscriptionNames = append(subscriptionNames, subscription.Name)
+	subscriptions := make([]endpointDataSourceSubscriptionModel, 0, len(asbSubscriptions))
+	for _, asbSubscription := range asbSubscriptions {
+		subscriptions = append(subscriptions, endpointDataSourceSubscriptionModel{
+			Filter:     convertAsbFilterToEnpointFilter(asbSubscription),
+			FilterType: types.StringValue(asbSubscription.FilterType),
+		})
 	}
 
-	state.Subscriptions = subscriptionNames
+	state.Subscriptions = subscriptions
 
 	queue, err := d.client.GetEndpointQueue(ctx, model)
 	if err != nil {
@@ -162,4 +195,13 @@ func (d *endpointDataSource) Read(ctx context.Context, req datasource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+func convertAsbFilterToEnpointFilter(asbSubscription asb.AsbSubscriptionRule) basetypes.StringValue {
+	if asbSubscription.FilterType == "correlation" {
+		return basetypes.NewStringValue(asbSubscription.Filter)
+	}
+
+	foundFilter := regexp.MustCompile(`^\[NServiceBus\.EnclosedMessageTypes\] LIKE '%([a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*)%'$`).FindStringSubmatch(asbSubscription.Filter)
+	return basetypes.NewStringValue(foundFilter[1])
 }

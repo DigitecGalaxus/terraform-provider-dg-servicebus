@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
-      - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           cache: true
       - run: go mod download
       - run: go build -v .
       - name: Run linters
-        uses: golangci/golangci-lint-action@v3.7.0
+        uses: golangci/golangci-lint-action@v5
         with:
           version: latest
 
@@ -32,15 +32,15 @@ jobs:
     runs-on: ubuntu-latest
     name: "Generate Documentation"
     steps:
-      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
-      - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           cache: true
-      - run: go generate ./...
+      - run: make tfdocs-generate
       - name: Comparing generated Terraform documentation against main
         run: |
-          git diff --compact-summary --exit-code || \
+          git diff --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
 
   test:
@@ -56,12 +56,12 @@ jobs:
           - "1.5.*"
           - "1.6.*"
     steps:
-      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
-      - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           cache: true
-      - uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1 # v2.0.3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
@@ -70,5 +70,5 @@ jobs:
           TF_ACC: "1"
           DG_SERVICEBUS_CLIENTSECRET: ${{ secrets.DG_SERVICEBUS_CLIENTSECRET }}
           DG_SERVICEBUS_CLIENTID: ${{ vars.DG_SERVICEBUS_CLIENTID }}
-        run: go test -v -cover ./internal/provider/
+        run: make testacc
         timeout-minutes: 10

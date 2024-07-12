@@ -10,7 +10,7 @@ import (
 func (w *AsbClientWrapper) CreateEndpointQueue(
 	ctx context.Context,
 	queueName string,
-	queueOptions EndpointQueueOptions,
+	queueOptions AsbEndpointQueueOptions,
 ) error {
 	return runWithRetryIncrementalBackOffVoid(
 		ctx,
@@ -38,7 +38,7 @@ func (w *AsbClientWrapper) CreateEndpointQueue(
 
 func (w *AsbClientWrapper) DeleteEndpointQueue(
 	ctx context.Context,
-	model EndpointModel,
+	model AsbEndpointModel,
 ) error {
 	return runWithRetryIncrementalBackOffVoid(
 		ctx, "Deleting queue"+model.EndpointName,
@@ -75,7 +75,7 @@ func (w *AsbClientWrapper) DeleteAdditionalQueue(
 
 func (w *AsbClientWrapper) GetEndpointQueue(
 	ctx context.Context,
-	model EndpointModel,
+	model AsbEndpointModel,
 ) (*az.GetQueueResponse, error) {
 	return runWithRetryIncrementalBackOff(
 		ctx,

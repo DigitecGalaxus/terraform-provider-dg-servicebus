@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/slices"
 )
@@ -168,32 +169,41 @@ func (r *endpointResource) updateEndpointSubscriptionState(
 	updatedState *endpointResourceModel,
 	resp *resource.ReadResponse,
 ) bool {
-	azureSubscriptions, err := r.client.GetEndpointSubscriptions(ctx, updatedState.ToAsbModel())
+	azureSubscriptions, err := r.client.GetAsbSubscriptionsRules(ctx, updatedState.ToAsbModel())
 	if err != nil {
 		return false
 	}
 
-	updatedSubscriptionState := []string{}
+	subscriptionFilterValues := []string{}
+	for _, subscription := range updatedState.Subscriptions {
+		subscriptionFilterValues = append(subscriptionFilterValues, subscription.Filter.ValueString())
+	}
+
+	updatedSubscriptionState := []SubscriptionModel{}
 	for _, azureSubscription := range azureSubscriptions {
-		subscriptionName := asb.TryGetFullSubscriptionNameFromRuleName(updatedState.Subscriptions, azureSubscription.Name)
-		if subscriptionName == nil {
+		index := asb.GetSubscriptionFilterValueForAsbRuleName(subscriptionFilterValues, azureSubscription)
+		if index < 0 {
 			resp.Diagnostics.AddWarning(fmt.Sprintf("Subscription %v not found in state for endpoint %v", azureSubscription.Name, updatedState.EndpointName),
 				"This could indicate that someone manually added it to the state. When an item is manually added to the state, it will be deleted on the next apply.",
 			)
 			// Add to the state, which will delete the resource on apply
-			updatedSubscriptionState = append(updatedSubscriptionState, azureSubscription.Name)
+			updatedSubscriptionState = append(updatedSubscriptionState, SubscriptionModel{
+				Filter:     basetypes.NewStringValue(azureSubscription.Filter),
+				FilterType: basetypes.NewStringValue(azureSubscription.FilterType),
+			})
 			continue
 		}
 
-		if !asb.IsSubscriptionFilterCorrect(azureSubscription.Filter, *subscriptionName) {
+		subscription := updatedState.Subscriptions[index]
+		if !asb.IsAsbSubscriptionRuleCorrect(azureSubscription, subscription.ToAsbModel()) {
 			resp.Diagnostics.AddWarning(fmt.Sprintf("Cannot parse rule '%v' in Subscription %v for endpoint %v", azureSubscription.Filter, azureSubscription.Name, updatedState.EndpointName),
 				"This could indicate that someone manually added the rule it. It will be added to the state as is.",
 			)
 			updatedState.HasMalformedFilters = types.BoolValue(true)
 		}
 
-		tflog.Info(ctx, fmt.Sprintf("Subscription %s is in state as %s", azureSubscription.Name, *subscriptionName))
-		updatedSubscriptionState = append(updatedSubscriptionState, *subscriptionName)
+		tflog.Info(ctx, fmt.Sprintf("Subscription %s is in state as %s of type %s", azureSubscription.Name, subscription.Filter.ValueString(), subscription.FilterType.ValueString()))
+		updatedSubscriptionState = append(updatedSubscriptionState, subscription)
 	}
 
 	updatedState.Subscriptions = updatedSubscriptionState
