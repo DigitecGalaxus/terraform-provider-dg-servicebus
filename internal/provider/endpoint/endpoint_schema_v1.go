@@ -71,7 +71,7 @@ func NewSchemaV1() schema.Schema {
 					"max_size_in_megabytes": schema.Int64Attribute{
 						Required: true,
 						Validators: []validator.Int64{
-							intOneOfValues([]int64{1024, 2048, 3072, 4096, 5120}),
+							intOneOfValues([]int64{1024, 2048, 3072, 4096, 5120, 10240, 20480, 40960, 81920}),
 						},
 					},
 					"max_message_size_in_kilobytes": schema.Int64Attribute{
