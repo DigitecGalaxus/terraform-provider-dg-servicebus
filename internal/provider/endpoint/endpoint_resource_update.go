@@ -108,6 +108,10 @@ func (r *endpointResource) UpdateSubscriptions(
 			// Rule exists, update it
 			tflog.Info(ctx, fmt.Sprintf("Updating subscription function filter type %s", planSubscription))
 			err := r.client.UpdateAsbSubscriptionRule(ctx, planModel, planSubscription.ToAsbModel())
+			if err == nil {
+				continue
+			}
+
 			return err
 		}
 
